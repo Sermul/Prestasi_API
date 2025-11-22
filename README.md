@@ -1,0 +1,1 @@
+assets/lion_animations/LionStoryAnimation.png
