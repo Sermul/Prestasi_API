@@ -1,8 +1,8 @@
 package service
 
 import (
-	"app/model"
-	"app/repository"
+	"prestasi_api/app/model"
+	"prestasi_api/app/repository"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,54 +11,48 @@ import (
 )
 
 type AchievementService struct {
-	MongoRepo repository.AchievementRepository
-	PgRepo    repository.AchievementRepository
+	MongoRepo    repository.AchievementMongoRepository
+	PostgresRepo repository.AchievementPostgresRepository
 }
 
-// =========================================
-// CREATE (FR-003)
-// =========================================
-func CreateAchievementService(c *fiber.Ctx) error {
-	var a model.AchievementMongo
+// FR-003 — Create Achievement
+func (s *AchievementService) Create(c *fiber.Ctx) error {
+	var data model.AchievementMongo
 
-	if err := c.BodyParser(&a); err != nil {
+	if err := c.BodyParser(&data); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
 	}
 
-	// create mongo
-	mongoID, err := Mongo.Achievement.CreateAchievementMongo(&a)
+	mongoID, err := s.MongoRepo.CreateAchievementMongo(&data)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	ref := model.AchievementReference{
 		ID:        uuid.New().String(),
-		StudentID: a.StudentID,
+		StudentID: data.StudentID,
 		MongoID:   mongoID.Hex(),
 		Status:    "draft",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	err = Postgres.Achievement.CreateReferencePostgres(&ref)
-	if err != nil {
+	if err := s.PostgresRepo.CreateReferencePostgres(&ref); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{
-		"message":        "Achievement created",
-		"referenceID":    ref.ID,
-		"mongoID":        mongoID.Hex(),
+		"message":     "Achievement created",
+		"referenceID": ref.ID,
+		"mongoID":     mongoID.Hex(),
 	})
 }
 
-// =========================================
-// SUBMIT (FR-004)
-// =========================================
-func SubmitAchievementService(c *fiber.Ctx) error {
+// FR-004 — Submit Achievement
+func (s *AchievementService) Submit(c *fiber.Ctx) error {
 	refID := c.Params("refId")
 
-	err := Postgres.Achievement.UpdateReferenceStatusPostgres(refID, "submitted")
+	err := s.PostgresRepo.UpdateReferenceStatusPostgres(refID, "submitted")
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -66,26 +60,28 @@ func SubmitAchievementService(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Achievement submitted"})
 }
 
-// =========================================
-// SOFT DELETE (FR-005)
-// =========================================
-func DeleteAchievementService(c *fiber.Ctx) error {
+// FR-005 — Soft Delete Achievement
+func (s *AchievementService) Delete(c *fiber.Ctx) error {
 	refID := c.Params("refId")
 
-	// update postgres status
-	err := Postgres.Achievement.UpdateReferenceStatusPostgres(refID, "deleted")
+	// Ambil mongoID dari postgres
+	mongoIDStr, err := s.PostgresRepo.GetMongoID(refID)
 	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Reference not found"})
+	}
+
+	oid, err := primitive.ObjectIDFromHex(mongoIDStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid Mongo ID"})
+	}
+
+	// Soft delete postgres
+	if err := s.PostgresRepo.UpdateReferenceStatusPostgres(refID, "deleted"); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// convert mongo id
-	mongoID, err := primitive.ObjectIDFromHex(refID)
-	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid mongo ID"})
-	}
-
-	err = Mongo.Achievement.SoftDeleteAchievementMongo(mongoID)
-	if err != nil {
+	// Soft delete mongo
+	if err := s.MongoRepo.SoftDeleteAchievementMongo(oid); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 

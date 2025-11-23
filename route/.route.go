@@ -1,14 +1,16 @@
 package route
 
 import (
-	"app/service"
+	"prestasi_api/service"
+
 	"github.com/gofiber/fiber/v2"
 )
 
-func AchievementRoute(app *fiber.App) {
-	api := app.Group("/api/v1")
+var AchievementRouter = func(app *fiber.App, svc *service.AchievementService) {
 
-	api.Post("/achievements", service.CreateAchievementService)
-	api.Post("/achievements/:refId/submit", service.SubmitAchievementService)
-	api.Delete("/achievements/:refId", service.DeleteAchievementService)
+	api := app.Group("/api/v1/achievements")
+
+	api.Post("/", svc.Create)               // FR-003
+	api.Post("/:refId/submit", svc.Submit)  // FR-004
+	api.Delete("/:refId", svc.Delete)       // FR-005
 }

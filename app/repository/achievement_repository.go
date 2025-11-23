@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"app/model"
+	"prestasi_api/app/model"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 

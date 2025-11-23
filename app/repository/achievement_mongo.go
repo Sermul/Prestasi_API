@@ -1,46 +1,116 @@
 package repository
 
 import (
+	"prestasi_api/database"
+	"prestasi_api/app/model"
 	"context"
+	"errors"
 	"time"
 
-	"app/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type AchievementMongoRepository struct {
-	Collection *mongo.Collection
+type AchievementMongoRepository interface {
+	CreateAchievementMongo(data *model.AchievementMongo) (primitive.ObjectID, error)
+	SoftDeleteAchievementMongo(id primitive.ObjectID) error
+	RestoreAchievementMongo(id primitive.ObjectID) error
+	GetByID(id primitive.ObjectID) (*model.AchievementMongo, error)
+	GetAll() ([]model.AchievementMongo, error)
 }
 
-func NewAchievementMongoRepository(col *mongo.Collection) *AchievementMongoRepository {
-	return &AchievementMongoRepository{Collection: col}
+type achievementMongoRepo struct {
+	collection *mongo.Collection
 }
 
-func (r *AchievementMongoRepository) CreateAchievementMongo(a *model.AchievementMongo) (primitive.ObjectID, error) {
-	now := time.Now()
-	a.CreatedAt = now
-	a.UpdatedAt = now
+func NewAchievementMongoRepository() AchievementMongoRepository {
+	return &achievementMongoRepo{
+		collection: database.Mongo.Collection("achievements"),
+	}
+}
 
-	res, err := r.Collection.InsertOne(context.Background(), a)
+// ===============================
+// CREATE (FR-003)
+// ===============================
+func (r *achievementMongoRepo) CreateAchievementMongo(data *model.AchievementMongo) (primitive.ObjectID, error) {
+	ctx := context.TODO()
+
+	data.ID = primitive.NewObjectID()
+	data.CreatedAt = time.Now()
+	data.UpdatedAt = time.Now()
+	data.DeletedAt = nil // soft delete default
+
+	_, err := r.collection.InsertOne(ctx, data)
 	if err != nil {
 		return primitive.NilObjectID, err
 	}
 
-	return res.InsertedID.(primitive.ObjectID), nil
+	return data.ID, nil
 }
 
-func (r *AchievementMongoRepository) SoftDeleteAchievementMongo(id primitive.ObjectID) error {
+// ===============================
+// SOFT DELETE (FR-005)
+// ===============================
+func (r *achievementMongoRepo) SoftDeleteAchievementMongo(id primitive.ObjectID) error {
+	ctx := context.TODO()
+
 	now := time.Now()
 
-	_, err := r.Collection.UpdateOne(
-		context.Background(),
-		bson.M{"_id": id},
-		bson.M{"$set": bson.M{
+	_, err := r.collection.UpdateByID(ctx, id, bson.M{
+		"$set": bson.M{
 			"deletedAt": now,
-			"updatedAt": now,
-		}},
-	)
+		},
+	})
+
 	return err
+}
+
+// ===============================
+// RESTORE (untuk modul SoftDelete)
+// ===============================
+func (r *achievementMongoRepo) RestoreAchievementMongo(id primitive.ObjectID) error {
+	ctx := context.TODO()
+
+	_, err := r.collection.UpdateByID(ctx, id, bson.M{
+		"$unset": bson.M{
+			"deletedAt": "",
+		},
+	})
+
+	return err
+}
+
+// ===============================
+// GET BY ID
+// ===============================
+func (r *achievementMongoRepo) GetByID(id primitive.ObjectID) (*model.AchievementMongo, error) {
+	ctx := context.TODO()
+
+	var result model.AchievementMongo
+
+	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&result)
+	if err != nil {
+		return nil, errors.New("data not found")
+	}
+
+	return &result, nil
+}
+
+// ===============================
+// GET ALL
+// ===============================
+func (r *achievementMongoRepo) GetAll() ([]model.AchievementMongo, error) {
+	ctx := context.TODO()
+
+	cursor, err := r.collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []model.AchievementMongo
+	err = cursor.All(ctx, &results)
+
+	return results, err
 }
