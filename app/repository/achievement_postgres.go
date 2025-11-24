@@ -1,54 +1,54 @@
 package repository
 
 import (
-	"prestasi_api/database"
-	"prestasi_api/app/model"
 	"context"
 	"errors"
+	"prestasi_api/app/model"
+	"prestasi_api/database"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Interface sesuai kebutuhan modul
 type AchievementPostgresRepository interface {
 	CreateReferencePostgres(ref *model.AchievementReference) error
 	UpdateReferenceStatusPostgres(refID string, status string) error
 	GetMongoID(refID string) (string, error)
+	GetReferenceByID(refID string) (*model.AchievementReference, error)
+	GetByStudentIDs(studentIDs []string) ([]model.AchievementReference, error)
 }
 
-// Implementasi repo
 type achievementPostgresRepo struct {
 	pool *pgxpool.Pool
 }
 
-// Constructor
 func NewAchievementPostgresRepository() AchievementPostgresRepository {
 	return &achievementPostgresRepo{
 		pool: database.Pg,
 	}
 }
 
-
-// CREATE REFERENCE (FR-003)
-
+// CREATE
 func (r *achievementPostgresRepo) CreateReferencePostgres(ref *model.AchievementReference) error {
 	_, err := r.pool.Exec(
 		context.Background(),
-		`INSERT INTO achievement_reference 
-		 (id, student_id, mongo_id, status, created_at, updated_at)
+		`INSERT INTO achievement_references
+		 (id, student_id, mongo_achievement_id, status, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		ref.ID, ref.StudentID, ref.MongoID, ref.Status, ref.CreatedAt, ref.UpdatedAt,
+		ref.ID,
+		ref.StudentID,
+		ref.MongoID,
+		ref.Status,
+		ref.CreatedAt,
+		ref.UpdatedAt,
 	)
 	return err
 }
 
-
-// UPDATE STATUS (FR-004 & FR-005)
-
+// UPDATE STATUS
 func (r *achievementPostgresRepo) UpdateReferenceStatusPostgres(refID string, status string) error {
 	_, err := r.pool.Exec(
 		context.Background(),
-		`UPDATE achievement_reference
+		`UPDATE achievement_references
 		 SET status = $1, updated_at = NOW()
 		 WHERE id = $2`,
 		status, refID,
@@ -56,15 +56,14 @@ func (r *achievementPostgresRepo) UpdateReferenceStatusPostgres(refID string, st
 	return err
 }
 
-
-// GET mongo_id (FR-005)
+// GET MONGO ACHIEVEMENT ID
 func (r *achievementPostgresRepo) GetMongoID(refID string) (string, error) {
 	var mongoID string
 
 	err := r.pool.QueryRow(
 		context.Background(),
-		`SELECT mongo_id 
-		 FROM achievement_reference
+		`SELECT mongo_achievement_id 
+		 FROM achievement_references
 		 WHERE id = $1`,
 		refID,
 	).Scan(&mongoID)
@@ -74,4 +73,62 @@ func (r *achievementPostgresRepo) GetMongoID(refID string) (string, error) {
 	}
 
 	return mongoID, nil
+}
+
+// GET FULL REFERENCE
+func (r *achievementPostgresRepo) GetReferenceByID(refID string) (*model.AchievementReference, error) {
+	var ref model.AchievementReference
+
+	err := r.pool.QueryRow(
+		context.Background(),
+		`SELECT id, student_id, mongo_achievement_id, status
+		 FROM achievement_references
+		 WHERE id = $1`,
+		refID,
+	).Scan(
+		&ref.ID,
+		&ref.StudentID,
+		&ref.MongoID,
+		&ref.Status,
+	)
+
+	if err != nil {
+		return nil, errors.New("reference not found")
+	}
+
+	return &ref, nil
+}
+func (r *achievementPostgresRepo) GetByStudentIDs(studentIDs []string) ([]model.AchievementReference, error) {
+	query := `
+		SELECT id, student_id, mongo_achievement_id, status, created_at, updated_at
+		FROM achievement_references
+        WHERE student_id = ANY($1)
+	`
+
+	rows, err := r.pool.Query(context.Background(), query, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var refs []model.AchievementReference
+
+	for rows.Next() {
+		var ref model.AchievementReference
+		err := rows.Scan(
+			&ref.ID,
+			&ref.StudentID,
+			&ref.MongoID,
+			&ref.Status,
+			&ref.CreatedAt,
+			&ref.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		refs = append(refs, ref)
+	}
+
+	return refs, nil
 }

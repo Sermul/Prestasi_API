@@ -13,6 +13,7 @@ import (
 type AchievementService struct {
 	MongoRepo    repository.AchievementMongoRepository
 	PostgresRepo repository.AchievementPostgresRepository
+	StudentRepo  repository.StudentPostgresRepository
 }
 
 // FR-003 — Create Achievement
@@ -62,28 +63,73 @@ func (s *AchievementService) Submit(c *fiber.Ctx) error {
 
 // FR-005 — Soft Delete Achievement
 func (s *AchievementService) Delete(c *fiber.Ctx) error {
-	refID := c.Params("refId")
+    refID := c.Params("refId")
+    userID := c.Locals("student_id").(string) // dari JWT middleware
 
-	// Ambil mongoID dari postgres
-	mongoIDStr, err := s.PostgresRepo.GetMongoID(refID)
-	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Reference not found"})
-	}
+    // 1. Ambil reference lengkap
+    ref, err := s.PostgresRepo.GetReferenceByID(refID)
+    if err != nil {
+        return c.Status(404).JSON(fiber.Map{"error": "Reference not found"})
+    }
 
-	oid, err := primitive.ObjectIDFromHex(mongoIDStr)
-	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid Mongo ID"})
-	}
+    // 2. Cek apakah pemilik data
+    if ref.StudentID != userID {
+        return c.Status(403).JSON(fiber.Map{"error": "Not your achievement"})
+    }
 
-	// Soft delete postgres
-	if err := s.PostgresRepo.UpdateReferenceStatusPostgres(refID, "deleted"); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
+    // 3. Cek status harus draft
+    if ref.Status != "draft" {
+        return c.Status(400).JSON(fiber.Map{"error": "Only draft achievements can be deleted"})
+    }
 
-	// Soft delete mongo
-	if err := s.MongoRepo.SoftDeleteAchievementMongo(oid); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
+    // 4. Konversi mongo ID
+    oid, err := primitive.ObjectIDFromHex(ref.MongoID)
+    if err != nil {
+        return c.Status(400).JSON(fiber.Map{"error": "Invalid MongoID"})
+    }
 
-	return c.JSON(fiber.Map{"message": "Achievement soft deleted"})
+    // 5. Soft delete MongoDB
+    if err := s.MongoRepo.SoftDeleteAchievementMongo(oid); err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    // 6. Update status Postgres → deleted
+    if err := s.PostgresRepo.UpdateReferenceStatusPostgres(refID, "deleted"); err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    return c.JSON(fiber.Map{"message": "Achievement deleted successfully"})
 }
+// FR-006 — Get Achievements for Advisee Students (Dosen Wali)
+func (s *AchievementService) GetAdviseeAchievements(advisorID string) ([]map[string]interface{}, error) {
+
+	// 1. Ambil semua mahasiswa bimbingan dosen
+	studentIDs, err := s.StudentRepo.GetStudentIDsByAdvisor(advisorID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Ambil semua reference prestasi milik mereka
+	refs, err := s.PostgresRepo.GetByStudentIDs(studentIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. Ambil detail prestasi dari MongoDB
+	var results []map[string]interface{}
+
+	for _, ref := range refs {
+		oid, _ := primitive.ObjectIDFromHex(ref.MongoID)
+		ach, _ := s.MongoRepo.GetByID(oid)
+
+		result := map[string]interface{}{
+			"reference":   ref,
+			"achievement": ach,
+		}
+
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
