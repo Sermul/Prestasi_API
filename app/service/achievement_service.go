@@ -201,3 +201,47 @@ func (s *AchievementService) Reject(advisorID string, refID string, note string)
 	// Update status
 	return s.PostgresRepo.RejectReference(refID, advisorID, note)
 }
+// ========================================================
+// WRAPPER UNTUK ROUTE (WAJIB ADA SUPAYA ROUTE TIDAK ERROR)
+// ========================================================
+
+// FR-006 — Advisor: Get list of achievements
+func (s *AchievementService) GetAdviseeAchievementsHandler(c *fiber.Ctx) error {
+	advisorID := c.Locals("user_id").(string)
+
+	data, err := s.GetAdviseeAchievements(advisorID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(data)
+}
+
+// FR-007 — Advisor: Verify achievement
+func (s *AchievementService) VerifyHandler(c *fiber.Ctx) error {
+	advisorID := c.Locals("user_id").(string)
+	refID := c.Params("refId")
+
+	if err := s.Verify(advisorID, refID); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"message": "Achievement verified"})
+}
+
+// FR-008 — Advisor: Reject achievement
+func (s *AchievementService) RejectHandler(c *fiber.Ctx) error {
+	advisorID := c.Locals("user_id").(string)
+	refID := c.Params("refId")
+
+	var body struct {
+		Note string `json:"note"`
+	}
+	_ = c.BodyParser(&body)
+
+	if err := s.Reject(advisorID, refID, body.Note); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"message": "Achievement rejected"})
+}
