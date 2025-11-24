@@ -61,21 +61,23 @@ func (r *achievementPostgresRepo) UpdateReferenceStatusPostgres(refID string, st
 
 // GET MONGO ACHIEVEMENT ID
 func (r *achievementPostgresRepo) GetMongoID(refID string) (string, error) {
-	var mongoID string
+	var mongoID *string
+err := r.pool.QueryRow(
+    context.Background(),
+    `SELECT mongo_achievement_id FROM achievement_references WHERE id = $1`,
+    refID,
+).Scan(&mongoID)
 
-	err := r.pool.QueryRow(
-		context.Background(),
-		`SELECT mongo_achievement_id 
-		 FROM achievement_references
-		 WHERE id = $1`,
-		refID,
-	).Scan(&mongoID)
+if err != nil {
+    return "", errors.New("reference not found")
+}
 
-	if err != nil {
-		return "", errors.New("reference not found")
-	}
+if mongoID == nil {
+    return "", nil
+}
 
-	return mongoID, nil
+return *mongoID, nil
+
 }
 
 // GET FULL REFERENCE
