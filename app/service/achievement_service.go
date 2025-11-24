@@ -64,7 +64,11 @@ func (s *AchievementService) Submit(c *fiber.Ctx) error {
 // FR-005 — Soft Delete Achievement
 func (s *AchievementService) Delete(c *fiber.Ctx) error {
     refID := c.Params("refId")
-    userID := c.Locals("student_id").(string) // dari JWT middleware
+    userID, ok := c.Locals("student_id").(string)
+if !ok {
+    // kalau belum ada JWT, isi manual dulu biar bisa testing
+    userID = "20313316-fbf6-45b3-87e1-d9ed8820b662"
+}
 
     // 1. Ambil reference lengkap
     ref, err := s.PostgresRepo.GetReferenceByID(refID)
