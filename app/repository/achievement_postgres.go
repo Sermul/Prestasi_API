@@ -15,6 +15,9 @@ type AchievementPostgresRepository interface {
 	GetMongoID(refID string) (string, error)
 	GetReferenceByID(refID string) (*model.AchievementReference, error)
 	GetByStudentIDs(studentIDs []string) ([]model.AchievementReference, error)
+	UpdateVerifyStatus(refID string, verifierID string) error
+RejectReference(refID string, advisorID string, note string) error
+
 }
 
 type achievementPostgresRepo struct {
@@ -131,4 +134,34 @@ func (r *achievementPostgresRepo) GetByStudentIDs(studentIDs []string) ([]model.
 	}
 
 	return refs, nil
+}
+func (r *achievementPostgresRepo) UpdateVerifyStatus(refID string, verifierID string) error {
+	_, err := r.pool.Exec(
+		context.Background(),
+		`UPDATE achievement_references
+		 SET status = 'verified',
+		     verified_by = $1,
+		     verified_at = NOW(),
+		     updated_at = NOW()
+		 WHERE id = $2`,
+		verifierID, refID,
+	)
+	return err
+}
+func (r *achievementPostgresRepo) RejectReference(refID string, advisorID string, note string) error {
+	_, err := r.pool.Exec(
+		context.Background(),
+		`UPDATE achievement_references
+		 SET status = 'rejected',
+		     rejection_note = $1,
+		     verified_by = $2,
+		     verified_at = NOW(),
+		     updated_at = NOW()
+		 WHERE id = $3`,
+		note,
+		advisorID,
+		refID,
+	)
+
+	return err
 }

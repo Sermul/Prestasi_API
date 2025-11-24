@@ -4,7 +4,7 @@ import (
 	"prestasi_api/app/model"
 	"prestasi_api/app/repository"
 	"time"
-
+ "errors"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -133,3 +133,71 @@ func (s *AchievementService) GetAdviseeAchievements(advisorID string) ([]map[str
 	return results, nil
 }
 
+func (s *AchievementService) Verify(advisorID string, refID string) error {
+
+	// 1. Ambil reference
+	ref, err := s.PostgresRepo.GetReferenceByID(refID)
+	if err != nil {
+		return errors.New("reference not found")
+	}
+
+	// 2. Ambil list mahasiswa bimbingan
+	studentIDs, err := s.StudentRepo.GetStudentIDsByAdvisor(advisorID)
+	if err != nil {
+		return err
+	}
+
+	// 3. Validasi apakah prestasi milik mahasiswa bimbingan
+	isAdvisee := false
+	for _, sid := range studentIDs {
+		if sid == ref.StudentID {
+			isAdvisee = true
+			break
+		}
+	}
+	if !isAdvisee {
+		return errors.New("not your advisee")
+	}
+
+	// 4. Validasi status
+	if ref.Status != "submitted" {
+		return errors.New("only submitted achievements can be verified")
+	}
+
+	// 5. Update status
+	return s.PostgresRepo.UpdateVerifyStatus(refID, advisorID)
+}
+
+
+func (s *AchievementService) Reject(advisorID string, refID string, note string) error {
+
+	ref, err := s.PostgresRepo.GetReferenceByID(refID)
+	if err != nil {
+		return err
+	}
+
+	// Status harus submitted
+	if ref.Status != "submitted" {
+		return errors.New("only submitted achievements can be rejected")
+	}
+
+	// Validasi mahasiswa bimbingan
+	students, err := s.StudentRepo.GetStudentIDsByAdvisor(advisorID)
+	if err != nil {
+		return err
+	}
+
+	isMine := false
+	for _, sid := range students {
+		if sid == ref.StudentID {
+			isMine = true
+			break
+		}
+	}
+	if !isMine {
+		return errors.New("not your advisee")
+	}
+
+	// Update status
+	return s.PostgresRepo.RejectReference(refID, advisorID, note)
+}
