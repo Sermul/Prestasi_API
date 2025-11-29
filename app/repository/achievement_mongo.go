@@ -30,9 +30,8 @@ func NewAchievementMongoRepository() AchievementMongoRepository {
 	}
 }
 
-// ===============================
+
 // CREATE (FR-003)
-// ===============================
 func (r *achievementMongoRepo) CreateAchievementMongo(data *model.AchievementMongo) (primitive.ObjectID, error) {
 	ctx := context.TODO()
 
@@ -49,9 +48,9 @@ func (r *achievementMongoRepo) CreateAchievementMongo(data *model.AchievementMon
 	return data.ID, nil
 }
 
-// ===============================
+
 // SOFT DELETE (FR-005)
-// ===============================
+
 func (r *achievementMongoRepo) SoftDeleteAchievementMongo(id primitive.ObjectID) error {
 	ctx := context.TODO()
 
@@ -66,9 +65,9 @@ func (r *achievementMongoRepo) SoftDeleteAchievementMongo(id primitive.ObjectID)
 	return err
 }
 
-// ===============================
-// RESTORE (untuk modul SoftDelete)
-// ===============================
+
+// RESTORE (SoftDelete)
+
 func (r *achievementMongoRepo) RestoreAchievementMongo(id primitive.ObjectID) error {
 	ctx := context.TODO()
 
@@ -81,36 +80,42 @@ func (r *achievementMongoRepo) RestoreAchievementMongo(id primitive.ObjectID) er
 	return err
 }
 
-// ===============================
+
 // GET BY ID
-// ===============================
+
 func (r *achievementMongoRepo) GetByID(id primitive.ObjectID) (*model.AchievementMongo, error) {
-	ctx := context.TODO()
+    ctx := context.TODO()
 
-	var result model.AchievementMongo
+    var result model.AchievementMongo
 
-	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&result)
-	if err != nil {
-		return nil, errors.New("data not found")
-	}
+    err := r.collection.FindOne(ctx, bson.M{
+        "_id": id,
+        "deletedAt": bson.M{"$exists": false},
+    }).Decode(&result)
+    if err != nil {
+        return nil, errors.New("data not found")
+    }
 
-	return &result, nil
+    return &result, nil
 }
 
-// ===============================
+
 // GET ALL
-// ===============================
+
 func (r *achievementMongoRepo) GetAll() ([]model.AchievementMongo, error) {
-	ctx := context.TODO()
+    ctx := context.TODO()
 
-	cursor, err := r.collection.Find(ctx, bson.M{})
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
+    cursor, err := r.collection.Find(ctx, bson.M{
+        "deletedAt": bson.M{"$exists": false},
+    })
+    if err != nil {
+        return nil, err
+    }
+    defer cursor.Close(ctx)
 
-	var results []model.AchievementMongo
-	err = cursor.All(ctx, &results)
+    var results []model.AchievementMongo
+    err = cursor.All(ctx, &results)
 
-	return results, err
+    return results, err
 }
+

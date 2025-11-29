@@ -34,16 +34,22 @@ func NewAchievementPostgresRepository() AchievementPostgresRepository {
 func (r *achievementPostgresRepo) CreateReferencePostgres(ref *model.AchievementReference) error {
 	_, err := r.pool.Exec(
 		context.Background(),
-		`INSERT INTO achievement_references
-		 (id, student_id, mongo_achievement_id, status, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		ref.ID,
-		ref.StudentID,
-		ref.MongoID,
-		ref.Status,
-		ref.CreatedAt,
-		ref.UpdatedAt,
-	)
+		 `INSERT INTO achievement_references
+        (id, student_id, mongo_achievement_id, status,
+         submitted_at, verified_at, verified_by, rejection_note,
+         created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    ref.ID,
+    ref.StudentID,
+    ref.MongoID,
+    ref.Status,
+    ref.SubmittedAt,
+    ref.VerifiedAt,
+    ref.VerifiedBy,
+    ref.RejectionNote,
+    ref.CreatedAt,
+    ref.UpdatedAt,
+)
 	return err
 }
 
@@ -86,16 +92,24 @@ func (r *achievementPostgresRepo) GetReferenceByID(refID string) (*model.Achieve
 
 	err := r.pool.QueryRow(
 		context.Background(),
-		`SELECT id, student_id, mongo_achievement_id, status
-		 FROM achievement_references
-		 WHERE id = $1`,
-		refID,
-	).Scan(
-		&ref.ID,
-		&ref.StudentID,
-		&ref.MongoID,
-		&ref.Status,
-	)
+		`SELECT id, student_id, mongo_achievement_id, status,
+            submitted_at, verified_at, verified_by, rejection_note,
+            created_at, updated_at
+     FROM achievement_references
+     WHERE id = $1`,
+    refID,
+).Scan(
+    &ref.ID,
+    &ref.StudentID,
+    &ref.MongoID,
+    &ref.Status,
+    &ref.SubmittedAt,
+    &ref.VerifiedAt,
+    &ref.VerifiedBy,
+    &ref.RejectionNote,
+    &ref.CreatedAt,
+    &ref.UpdatedAt,
+)
 
 	if err != nil {
 		return nil, errors.New("reference not found")
