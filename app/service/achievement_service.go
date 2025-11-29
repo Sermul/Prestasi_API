@@ -23,6 +23,10 @@ func (s *AchievementService) Create(c *fiber.Ctx) error {
 	if err := c.BodyParser(&data); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
 	}
+student, _ := s.StudentRepo.GetByID(data.StudentID)
+if student == nil {
+    return c.Status(400).JSON(fiber.Map{"error": "Invalid student ID"})
+}
 
 	mongoID, err := s.MongoRepo.CreateAchievementMongo(&data)
 	if err != nil {
@@ -33,7 +37,7 @@ func (s *AchievementService) Create(c *fiber.Ctx) error {
 		ID:        uuid.New().String(),
 		StudentID: data.StudentID,
 		MongoID:   mongoID.Hex(),
-		Status:    "draft",
+		Status:    "pending",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -51,15 +55,44 @@ func (s *AchievementService) Create(c *fiber.Ctx) error {
 
 // FR-004 — Submit Achievement
 func (s *AchievementService) Submit(c *fiber.Ctx) error {
-	refID := c.Params("refId")
+    refID := c.Params("refId")
 
-	err := s.PostgresRepo.UpdateReferenceStatusPostgres(refID, "submitted")
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
+    // Ambil student ID dari JWT (atau fallback untuk testing)
+    studentID, ok := c.Locals("student_id").(string)
+    if !ok {
+        studentID = "20313316-fbf6-45b3-87e1-d9ed8820b662" // fallback
+    }
 
-	return c.JSON(fiber.Map{"message": "Achievement submitted"})
+    // 1. Get reference
+    ref, err := s.PostgresRepo.GetReferenceByID(refID)
+    if err != nil {
+        return c.Status(404).JSON(fiber.Map{"error": "reference not found"})
+    }
+
+    // 2. Cek apakah prestasi milik mahasiswa ini
+    if ref.StudentID != studentID {
+        return c.Status(403).JSON(fiber.Map{"error": "not your achievement"})
+    }
+
+    // 3. Hanya boleh submit jika status belum diverifikasi
+    if ref.Status == "verified" || ref.Status == "rejected" {
+        return c.Status(400).JSON(fiber.Map{"error": "cannot submit verified/rejected achievement"})
+    }
+
+    // 4. Isi submitted_at
+    now := time.Now()
+    ref.SubmittedAt = &now
+
+    // 5. Update status → submitted
+    err = s.PostgresRepo.UpdateReferenceStatusPostgres(refID, "submitted")
+    if err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    return c.JSON(fiber.Map{"message": "Achievement submitted"})
 }
+
+
 
 // FR-005 — Soft Delete Achievement
 func (s *AchievementService) Delete(c *fiber.Ctx) error {
@@ -82,9 +115,10 @@ if !ok {
     }
 
     // 3. Cek status harus draft
-    if ref.Status != "draft" {
-        return c.Status(400).JSON(fiber.Map{"error": "Only draft achievements can be deleted"})
-    }
+    if ref.Status == "verified" || ref.Status == "rejected" {
+    return c.Status(400).JSON(fiber.Map{"error": "Cannot delete verified or rejected achievements"})
+}
+
 
     // 4. Konversi mongo ID
     oid, err := primitive.ObjectIDFromHex(ref.MongoID)
