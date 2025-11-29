@@ -1,10 +1,12 @@
 package service
 
 import (
+	// "errors"
+	"time"
+
 	"prestasi_api/app/model"
 	"prestasi_api/app/repository"
-	"time"
- "errors"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -16,23 +18,30 @@ type AchievementService struct {
 	StudentRepo  repository.StudentPostgresRepository
 }
 
-// FR-003 — Create Achievement
+//
+// ==========================
+// FR-003 — CREATE ACHIEVEMENT
+// ==========================
 func (s *AchievementService) Create(c *fiber.Ctx) error {
 	var data model.AchievementMongo
 
 	if err := c.BodyParser(&data); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
 	}
-student, _ := s.StudentRepo.GetByID(data.StudentID)
-if student == nil {
-    return c.Status(400).JSON(fiber.Map{"error": "Invalid student ID"})
-}
 
+	// Validasi student
+	student, _ := s.StudentRepo.GetByID(data.StudentID)
+	if student == nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid student ID"})
+	}
+
+	// Create Mongo achievement
 	mongoID, err := s.MongoRepo.CreateAchievementMongo(&data)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	// Create Postgres reference
 	ref := model.AchievementReference{
 		ID:        uuid.New().String(),
 		StudentID: data.StudentID,
@@ -53,232 +62,188 @@ if student == nil {
 	})
 }
 
-// FR-004 — Submit Achievement
+//
+// ==========================
+// FR-004 — SUBMIT ACHIEVEMENT
+// ==========================
 func (s *AchievementService) Submit(c *fiber.Ctx) error {
-    refID := c.Params("refId")
+	refID := c.Params("refId")
 
-    // Ambil student ID dari JWT (atau fallback untuk testing)
-    studentID, ok := c.Locals("student_id").(string)
-    if !ok {
-        studentID = "20313316-fbf6-45b3-87e1-d9ed8820b662" // fallback
-    }
+	studentID, ok := c.Locals("student_id").(string)
+	if !ok {
+		studentID = "20313316-fbf6-45b3-87e1-d9ed8820b662" // fallback
+	}
 
-    // 1. Get reference
-    ref, err := s.PostgresRepo.GetReferenceByID(refID)
-    if err != nil {
-        return c.Status(404).JSON(fiber.Map{"error": "reference not found"})
-    }
+	ref, err := s.PostgresRepo.GetReferenceByID(refID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "reference not found"})
+	}
 
-    // 2. Cek apakah prestasi milik mahasiswa ini
-    if ref.StudentID != studentID {
-        return c.Status(403).JSON(fiber.Map{"error": "not your achievement"})
-    }
+	if ref.StudentID != studentID {
+		return c.Status(403).JSON(fiber.Map{"error": "not your achievement"})
+	}
 
-    // 3. Hanya boleh submit jika status belum diverifikasi
-    if ref.Status == "verified" || ref.Status == "rejected" {
-        return c.Status(400).JSON(fiber.Map{"error": "cannot submit verified/rejected achievement"})
-    }
+	if ref.Status == "verified" || ref.Status == "rejected" {
+		return c.Status(400).JSON(fiber.Map{"error": "cannot submit verified/rejected achievement"})
+	}
 
-    // 4. Isi submitted_at
-    now := time.Now()
-    ref.SubmittedAt = &now
+	now := time.Now()
+	ref.SubmittedAt = &now
 
-    // 5. Update status → submitted
-    err = s.PostgresRepo.UpdateReferenceStatusPostgres(refID, "submitted")
-    if err != nil {
-        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-    }
+	if err := s.PostgresRepo.UpdateReferenceStatusPostgres(refID, "submitted"); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
 
-    return c.JSON(fiber.Map{"message": "Achievement submitted"})
+	return c.JSON(fiber.Map{"message": "Achievement submitted"})
 }
 
-
-
-// FR-005 — Soft Delete Achievement
+//
+// ==========================
+// FR-005 — SOFT DELETE ACHIEVEMENT
+// ==========================
 func (s *AchievementService) Delete(c *fiber.Ctx) error {
-    refID := c.Params("refId")
-    userID, ok := c.Locals("student_id").(string)
-if !ok {
-    // kalau belum ada JWT, isi manual dulu biar bisa testing
-    userID = "20313316-fbf6-45b3-87e1-d9ed8820b662"
+	refID := c.Params("refId")
+
+	userID, ok := c.Locals("student_id").(string)
+	if !ok {
+		userID = "20313316-fbf6-45b3-87e1-d9ed8820b662" // fallback
+	}
+
+	ref, err := s.PostgresRepo.GetReferenceByID(refID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "reference not found"})
+	}
+
+	if ref.StudentID != userID {
+		return c.Status(403).JSON(fiber.Map{"error": "not your achievement"})
+	}
+
+	if ref.Status == "verified" || ref.Status == "rejected" {
+		return c.Status(400).JSON(fiber.Map{"error": "cannot delete verified/rejected achievement"})
+	}
+
+	oid, err := primitive.ObjectIDFromHex(ref.MongoID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid mongo id"})
+	}
+
+	if err := s.MongoRepo.SoftDeleteAchievementMongo(oid); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if err := s.PostgresRepo.UpdateReferenceStatusPostgres(refID, "deleted"); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"message": "Achievement deleted successfully"})
 }
 
-    // 1. Ambil reference lengkap
-    ref, err := s.PostgresRepo.GetReferenceByID(refID)
-    if err != nil {
-        return c.Status(404).JSON(fiber.Map{"error": "Reference not found"})
-    }
+//
+// ==========================
+// FR-006 — ADVISOR: LIST ACHIEVEMENTS
+// ==========================
+func (s *AchievementService) GetAdviseeAchievements(c *fiber.Ctx) error {
+	advisorID := c.Locals("user_id").(string)
 
-    // 2. Cek apakah pemilik data
-    if ref.StudentID != userID {
-        return c.Status(403).JSON(fiber.Map{"error": "Not your achievement"})
-    }
-
-    // 3. Cek status harus draft
-    if ref.Status == "verified" || ref.Status == "rejected" {
-    return c.Status(400).JSON(fiber.Map{"error": "Cannot delete verified or rejected achievements"})
-}
-
-
-    // 4. Konversi mongo ID
-    oid, err := primitive.ObjectIDFromHex(ref.MongoID)
-    if err != nil {
-        return c.Status(400).JSON(fiber.Map{"error": "Invalid MongoID"})
-    }
-
-    // 5. Soft delete MongoDB
-    if err := s.MongoRepo.SoftDeleteAchievementMongo(oid); err != nil {
-        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-    }
-
-    // 6. Update status Postgres → deleted
-    if err := s.PostgresRepo.UpdateReferenceStatusPostgres(refID, "deleted"); err != nil {
-        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-    }
-
-    return c.JSON(fiber.Map{"message": "Achievement deleted successfully"})
-}
-// FR-006 — Get Achievements for Advisee Students (Dosen Wali)
-func (s *AchievementService) GetAdviseeAchievements(advisorID string) ([]map[string]interface{}, error) {
-
-	// 1. Ambil semua mahasiswa bimbingan dosen
 	studentIDs, err := s.StudentRepo.GetStudentIDsByAdvisor(advisorID)
 	if err != nil {
-		return nil, err
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// 2. Ambil semua reference prestasi milik mereka
 	refs, err := s.PostgresRepo.GetByStudentIDs(studentIDs)
 	if err != nil {
-		return nil, err
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// 3. Ambil detail prestasi dari MongoDB
 	var results []map[string]interface{}
 
 	for _, ref := range refs {
 		oid, _ := primitive.ObjectIDFromHex(ref.MongoID)
 		ach, _ := s.MongoRepo.GetByID(oid)
 
-		result := map[string]interface{}{
+		results = append(results, map[string]interface{}{
 			"reference":   ref,
 			"achievement": ach,
-		}
-
-		results = append(results, result)
+		})
 	}
 
-	return results, nil
+	return c.JSON(results)
 }
 
-func (s *AchievementService) Verify(advisorID string, refID string) error {
-
-	// 1. Ambil reference
-	ref, err := s.PostgresRepo.GetReferenceByID(refID)
-	if err != nil {
-		return errors.New("reference not found")
-	}
-
-	// 2. Ambil list mahasiswa bimbingan
-	studentIDs, err := s.StudentRepo.GetStudentIDsByAdvisor(advisorID)
-	if err != nil {
-		return err
-	}
-
-	// 3. Validasi apakah prestasi milik mahasiswa bimbingan
-	isAdvisee := false
-	for _, sid := range studentIDs {
-		if sid == ref.StudentID {
-			isAdvisee = true
-			break
-		}
-	}
-	if !isAdvisee {
-		return errors.New("not your advisee")
-	}
-
-	// 4. Validasi status
-	if ref.Status != "submitted" {
-		return errors.New("only submitted achievements can be verified")
-	}
-
-	// 5. Update status
-	return s.PostgresRepo.UpdateVerifyStatus(refID, advisorID)
-}
-
-
-func (s *AchievementService) Reject(advisorID string, refID string, note string) error {
-
-	ref, err := s.PostgresRepo.GetReferenceByID(refID)
-	if err != nil {
-		return err
-	}
-
-	// Status harus submitted
-	if ref.Status != "submitted" {
-		return errors.New("only submitted achievements can be rejected")
-	}
-
-	// Validasi mahasiswa bimbingan
-	students, err := s.StudentRepo.GetStudentIDsByAdvisor(advisorID)
-	if err != nil {
-		return err
-	}
-
-	isMine := false
-	for _, sid := range students {
-		if sid == ref.StudentID {
-			isMine = true
-			break
-		}
-	}
-	if !isMine {
-		return errors.New("not your advisee")
-	}
-
-	// Update status
-	return s.PostgresRepo.RejectReference(refID, advisorID, note)
-}
-// ========================================================
-// WRAPPER UNTUK ROUTE (WAJIB ADA SUPAYA ROUTE TIDAK ERROR)
-// ========================================================
-
-// FR-006 — Advisor: Get list of achievements
-func (s *AchievementService) GetAdviseeAchievementsHandler(c *fiber.Ctx) error {
-	advisorID := c.Locals("user_id").(string)
-
-	data, err := s.GetAdviseeAchievements(advisorID)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	return c.JSON(data)
-}
-
-// FR-007 — Advisor: Verify achievement
-func (s *AchievementService) VerifyHandler(c *fiber.Ctx) error {
+//
+// ==========================
+// FR-007 — VERIFY ACHIEVEMENT
+// ==========================
+func (s *AchievementService) Verify(c *fiber.Ctx) error {
 	advisorID := c.Locals("user_id").(string)
 	refID := c.Params("refId")
 
-	if err := s.Verify(advisorID, refID); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	ref, err := s.PostgresRepo.GetReferenceByID(refID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "reference not found"})
+	}
+
+	studentIDs, _ := s.StudentRepo.GetStudentIDsByAdvisor(advisorID)
+
+	valid := false
+	for _, sid := range studentIDs {
+		if sid == ref.StudentID {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return c.Status(400).JSON(fiber.Map{"error": "not your advisee"})
+	}
+
+	if ref.Status != "submitted" {
+		return c.Status(400).JSON(fiber.Map{"error": "only submitted achievements can be verified"})
+	}
+
+	if err := s.PostgresRepo.UpdateVerifyStatus(refID, advisorID); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{"message": "Achievement verified"})
 }
 
-// FR-008 — Advisor: Reject achievement
-func (s *AchievementService) RejectHandler(c *fiber.Ctx) error {
+//
+// ==========================
+// FR-008 — REJECT ACHIEVEMENT
+// ==========================
+func (s *AchievementService) Reject(c *fiber.Ctx) error {
 	advisorID := c.Locals("user_id").(string)
 	refID := c.Params("refId")
 
 	var body struct {
 		Note string `json:"note"`
 	}
-	_ = c.BodyParser(&body)
+	c.BodyParser(&body)
 
-	if err := s.Reject(advisorID, refID, body.Note); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	ref, err := s.PostgresRepo.GetReferenceByID(refID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "reference not found"})
+	}
+
+	if ref.Status != "submitted" {
+		return c.Status(400).JSON(fiber.Map{"error": "only submitted achievements can be rejected"})
+	}
+
+	studentIDs, _ := s.StudentRepo.GetStudentIDsByAdvisor(advisorID)
+
+	valid := false
+	for _, sid := range studentIDs {
+		if sid == ref.StudentID {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return c.Status(400).JSON(fiber.Map{"error": "not your advisee"})
+	}
+
+	if err := s.PostgresRepo.RejectReference(refID, advisorID, body.Note); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{"message": "Achievement rejected"})
