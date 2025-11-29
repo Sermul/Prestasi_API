@@ -10,29 +10,33 @@ import (
 )
 
 func main() {
-	// Koneksi database
+	// Connect database
 	database.ConnectPostgres()
 	database.ConnectMongo()
 
-	// Inisialisasi Fiber
 	app := fiber.New()
 
-	// Inisialisasi repository
-	mongoRepo := repository.NewAchievementMongoRepository()
-	postgresRepo := repository.NewAchievementPostgresRepository()
+	// ===== REPOSITORY =====
+	achievementMongoRepo := repository.NewAchievementMongoRepository()
+	achievementPostgresRepo := repository.NewAchievementPostgresRepository()
 	studentRepo := repository.NewStudentPostgresRepository()
+	userRepo := repository.NewUserPostgresRepository()
+	roleRepo := repository.NewRolePostgresRepository()
+	permissionRepo := repository.NewPermissionPostgresRepository()
+	rolePermissionRepo := repository.NewRolePermissionPostgresRepository()
 
-	// Inisialisasi service
-	svc := &service.AchievementService{
-		MongoRepo:    mongoRepo,
-		PostgresRepo: postgresRepo,
+	// ===== SERVICE =====
+	authSvc := service.NewAuthService(userRepo, roleRepo, permissionRepo, rolePermissionRepo)
+	achievementSvc := &service.AchievementService{
+		MongoRepo:    achievementMongoRepo,
+		PostgresRepo: achievementPostgresRepo,
 		StudentRepo:  studentRepo,
 	}
 
-	// Register route
-	route.AchievementRouter(app, svc)
+	// ===== ROUTES =====
+	route.AuthRouter(app, authSvc)
+	route.AchievementRouter(app, achievementSvc)
 
-	// Jalankan server
-	println("Prestasi API siap jalan di port 3000...")
+	println("Prestasi API berjalan di port 3000...")
 	app.Listen(":3000")
 }
