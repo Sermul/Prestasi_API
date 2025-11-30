@@ -3,11 +3,11 @@ package middleware
 import (
 	"strings"
 
-	"prestasi_api/helper"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+var secret = []byte("SECRET_KEY")
 
 func JWTMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
@@ -18,15 +18,19 @@ func JWTMiddleware() fiber.Handler {
 
 		tokenStr := strings.TrimPrefix(auth, "Bearer ")
 
-		token, err := helper.ParseToken(tokenStr)
+		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+			return secret, nil
+		})
+
 		if err != nil || !token.Valid {
-			return c.Status(401).JSON(fiber.Map{"error": "Invalid token"})
+			return c.Status(401).JSON(fiber.Map{"error": "Invalid or expired token"})
 		}
 
 		claims := token.Claims.(jwt.MapClaims)
 
+	
 		c.Locals("user_id", claims["user_id"])
-		c.Locals("role", claims["role"])  // ⬅️ simpan role_name
+		c.Locals("role", claims["role"])
 
 		return c.Next()
 	}

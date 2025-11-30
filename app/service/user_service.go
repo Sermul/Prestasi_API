@@ -1,0 +1,104 @@
+package service
+
+import (
+    "prestasi_api/app/model"
+    "prestasi_api/app/repository"
+    "time"
+
+    "github.com/gofiber/fiber/v2"
+    "github.com/google/uuid"
+)
+
+type UserService struct {
+    UserRepo repository.UserPostgresRepository
+    RoleRepo repository.RolePostgresRepository
+}
+
+func NewUserService(userRepo repository.UserPostgresRepository, roleRepo repository.RolePostgresRepository) *UserService {
+    return &UserService{
+        UserRepo: userRepo,
+        RoleRepo: roleRepo,
+    }
+}
+
+// LIST USERS
+func (s *UserService) List(c *fiber.Ctx) error {
+    users, err := s.UserRepo.GetAll()
+    if err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
+    return c.JSON(users)
+}
+
+// DETAIL USER
+func (s *UserService) Detail(c *fiber.Ctx) error {
+    id := c.Params("id")
+    user, err := s.UserRepo.GetByID(id)
+    if err != nil {
+        return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+    }
+    return c.JSON(user)
+}
+
+// CREATE USER
+func (s *UserService) Create(c *fiber.Ctx) error {
+    var body model.User
+    if err := c.BodyParser(&body); err != nil {
+        return c.Status(400).JSON(fiber.Map{"error": "invalid body"})
+    }
+
+    body.ID = uuid.New().String()
+    body.CreatedAt = time.Now()
+    body.UpdatedAt = time.Now()
+
+    if err := s.UserRepo.Create(&body); err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    return c.JSON(body)
+}
+
+// UPDATE USER
+func (s *UserService) Update(c *fiber.Ctx) error {
+    id := c.Params("id")
+
+    var body model.User
+    if err := c.BodyParser(&body); err != nil {
+        return c.Status(400).JSON(fiber.Map{"error": "invalid body"})
+    }
+
+    body.UpdatedAt = time.Now()
+
+    if err := s.UserRepo.Update(id, &body); err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    return c.JSON(body)
+}
+
+// DELETE USER
+func (s *UserService) Delete(c *fiber.Ctx) error {
+    id := c.Params("id")
+
+    if err := s.UserRepo.Delete(id); err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    return c.JSON(fiber.Map{"message": "user deleted"})
+}
+
+// CHANGE ROLE
+func (s *UserService) ChangeRole(c *fiber.Ctx) error {
+    id := c.Params("id")
+
+    var body struct {
+        RoleID string `json:"role_id"`
+    }
+    c.BodyParser(&body)
+
+    if err := s.UserRepo.UpdateRole(id, body.RoleID); err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    return c.JSON(fiber.Map{"message": "role updated"})
+}
