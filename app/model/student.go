@@ -3,12 +3,13 @@ package model
 import "time"
 
 type Student struct {
-    ID           string    `db:"id" json:"id"`
-    UserID       string    `db:"user_id" json:"userId"`
-    StudentID    string    `db:"student_id" json:"studentId"`
-    ProgramStudy string    `db:"program_study" json:"programStudy"`
-    AcademicYear string    `db:"academic_year" json:"academicYear"`
-    AdvisorID    string    `db:"advisor_id" json:"advisorId"`
-    CreatedAt    time.Time `db:"created_at" json:"createdAt"`
-    UpdatedAt    time.Time `db:"updated_at" json:"updatedAt"`
+    ID           string     `json:"id"`
+    UserID       string     `json:"user_id"`
+    StudentID    string     `json:"student_id"`
+    ProgramStudy string     `json:"program_study"`
+    AcademicYear string     `json:"academic_year"`
+
+    AdvisorID    *string     `json:"advisor_id"`   // ← WAJIB POINTER BIAR NULL BISA MASUK
+    CreatedAt    *time.Time  `json:"created_at"`
+    UpdatedAt    *time.Time  `json:"updated_at"`
 }

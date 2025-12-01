@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -14,8 +16,9 @@ func RoleGuard(allowedRoles ...string) fiber.Handler {
 
 		roleName := role.(string)
 
+		// Case-insensitive compare
 		for _, allowed := range allowedRoles {
-			if allowed == roleName {
+			if strings.EqualFold(allowed, roleName) {
 				return c.Next()
 			}
 		}

@@ -19,7 +19,7 @@ type AuthService struct {
 	RoleRepo           repository.RolePostgresRepository
 	PermissionRepo     repository.PermissionPostgresRepository
 	RolePermissionRepo repository.RolePermissionPostgresRepository
-
+    StudentRepo        repository.StudentPostgresRepository   // ⬅ WAJIB
 	// JWT JWTService  // ⬅️ Tambahkan ini
 }
 
@@ -32,14 +32,17 @@ func NewAuthService(
 	roleRepo repository.RolePostgresRepository,
 	permissionRepo repository.PermissionPostgresRepository,
 	rolePermissionRepo repository.RolePermissionPostgresRepository,
+	studentRepo repository.StudentPostgresRepository,
 ) *AuthService {
 	return &AuthService{
 		UserRepo:           userRepo,
 		RoleRepo:           roleRepo,
 		PermissionRepo:     permissionRepo,
 		RolePermissionRepo: rolePermissionRepo,
+		StudentRepo:        studentRepo, // ⬅ tambahkan ini
 	}
 }
+
 
 // =========================
 // REGISTER
@@ -112,15 +115,27 @@ func (s *AuthService) Login(c *fiber.Ctx) error {
         return c.Status(500).JSON(fiber.Map{"error": "failed to load role"})
     }
 
-    // ==== ACCESS TOKEN (baru & benar) ====
-accessClaims := jwt.MapClaims{
-    "user_id": user.ID,
-    "role":    role.Name, // ⬅ WAJIB! Untuk RoleGuard
-    "exp":     time.Now().Add(24 * time.Hour).Unix(),
+    // === Ambil student berdasarkan user_id ===
+   var studentID string
+
+if role.Name == "Mahasiswa" {
+    student, err := s.StudentRepo.GetByUserID(user.ID)
+    if err != nil {
+        return c.Status(400).JSON(fiber.Map{"error": "student not found"})
+    }
+    studentID = student.ID
 }
 
-accessTokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-accessToken, _ := accessTokenObj.SignedString([]byte("SECRET_KEY"))
+    // ==== ACCESS TOKEN ====
+   accessClaims := jwt.MapClaims{
+    "user_id": user.ID,
+    "role": role.Name,
+    "student_id": studentID,
+    "exp": time.Now().Add(24 * time.Hour).Unix(),
+}
+
+    accessTokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+    accessToken, _ := accessTokenObj.SignedString([]byte("SECRET_KEY"))
 
     // ==== REFRESH TOKEN ====
     refreshClaims := jwt.MapClaims{
@@ -131,7 +146,7 @@ accessToken, _ := accessTokenObj.SignedString([]byte("SECRET_KEY"))
     refreshTokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
     refreshToken, _ := refreshTokenObj.SignedString([]byte("SECRET_KEY"))
 
-    // Simpan refresh token ke cookie
+    // simpan refresh cookie
     c.Cookie(&fiber.Cookie{
         Name:     "refresh_token",
         Value:    refreshToken,
@@ -146,6 +161,7 @@ accessToken, _ := accessTokenObj.SignedString([]byte("SECRET_KEY"))
         "user":         user,
     })
 }
+
 
 
 func (s *AuthService) Refresh(c *fiber.Ctx) error {

@@ -1,18 +1,34 @@
 package main
 
 import (
+	"log"
+	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
+
 	"prestasi_api/app/repository"
 	"prestasi_api/app/service"
 	"prestasi_api/database"
 	"prestasi_api/route"
 
-	"github.com/gofiber/fiber/v2"
+	
 )
 
 func main() {
+	  // Load .env
+    if err := godotenv.Load(); err != nil {
+        log.Println("⚠️  .env file tidak ditemukan atau gagal dibaca")
+    } else {
+        log.Println("📄 .env berhasil dimuat")
+    }
 	// Connect database
-	database.ConnectPostgres()
-	database.ConnectMongo()
+	// Connect database
+if err := database.ConnectPostgres(); err != nil {
+    log.Fatal(err)
+}
+
+if err := database.ConnectMongo(); err != nil {
+    log.Fatal(err)
+}
 
 	app := fiber.New()
 
@@ -26,7 +42,7 @@ func main() {
 	rolePermissionRepo := repository.NewRolePermissionPostgresRepository()
 
 	// ===== SERVICE =====
-	authSvc := service.NewAuthService(userRepo, roleRepo, permissionRepo, rolePermissionRepo)
+	authSvc := service.NewAuthService(userRepo, roleRepo, permissionRepo, rolePermissionRepo,studentRepo)
 	achievementSvc := &service.AchievementService{
 		MongoRepo:    achievementMongoRepo,
 		PostgresRepo: achievementPostgresRepo,
@@ -37,6 +53,6 @@ func main() {
 	route.AuthRouter(app, authSvc)
 	route.AchievementRouter(app, achievementSvc)
 
-	println("Prestasi API berjalan di port 3000...")
+	log.Println("🚀 Prestasi API berjalan di port 3000...")
 	app.Listen(":3000")
 }

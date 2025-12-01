@@ -4,25 +4,35 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var Pg *pgxpool.Pool
 
-func ConnectPostgres() {
-	dsn := "postgres://postgres:12345678@localhost:5432/prestasi_api_db?sslmode=disable"
+func ConnectPostgres() error {
+	host := os.Getenv("POSTGRES_HOST")
+	port := os.Getenv("POSTGRES_PORT")
+	user := os.Getenv("POSTGRES_USER")
+	pass := os.Getenv("POSTGRES_PASSWORD")
+	dbname := os.Getenv("POSTGRES_DB")
 
+	dsn := fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		user, pass, host, port, dbname,
+	)
 
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
-		log.Fatal("Gagal konek Postgres:", err)
+		return fmt.Errorf("gagal konek Postgres: %v", err)
 	}
 
 	if err := pool.Ping(context.Background()); err != nil {
-		log.Fatal("Postgres tidak merespons:", err)
+		return fmt.Errorf("Postgres tidak merespons: %v", err)
 	}
 
 	Pg = pool
-	fmt.Println("PostgreSQL terhubung")
+	log.Println("✅ PostgreSQL terhubung")
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -11,14 +12,18 @@ import (
 
 var Mongo *mongo.Database
 
-func ConnectMongo() {
+func ConnectMongo() error {
+	uri := os.Getenv("MONGO_URI")
+	dbname := os.Getenv("MONGO_DB")
+
 	client, err := mongo.Connect(context.Background(),
-		options.Client().ApplyURI("mongodb://localhost:27017"),
+		options.Client().ApplyURI(uri),
 	)
 	if err != nil {
-		log.Fatal("Gagal konek MongoDB:", err)
+		return fmt.Errorf("gagal konek MongoDB: %v", err)
 	}
 
-	Mongo = client.Database("prestasi_api_mongo")
-	fmt.Println("MongoDB connected!")
+	Mongo = client.Database(dbname)
+	log.Println("✅ MongoDB terhubung")
+	return nil
 }
