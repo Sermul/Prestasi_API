@@ -11,6 +11,8 @@ type LecturerPostgresRepository interface {
 	Create(l *model.Lecturer) error
 	GetByUserID(userID string) (*model.Lecturer, error)
 	GetByLecturerID(lecturerID string) (*model.Lecturer, error)
+	List() ([]model.Lecturer, error)          
+	Detail(id string) (*model.Lecturer, error) 
 }
 
 type lecturerPostgresRepo struct{}
@@ -61,6 +63,44 @@ func (r *lecturerPostgresRepo) GetByLecturerID(lecturerID string) (*model.Lectur
 	).Scan(
 		&l.ID, &l.UserID, &l.LecturerID, &l.Department, &l.CreatedAt,
 	)
+
+	if err != nil {
+		return nil, errors.New("lecturer not found")
+	}
+
+	return &l, nil
+}
+func (r *lecturerPostgresRepo) List() ([]model.Lecturer, error) {
+	rows, err := database.Pg.Query(
+		context.Background(),
+		`SELECT id, user_id, lecturer_id, department, created_at FROM lecturers`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []model.Lecturer
+
+	for rows.Next() {
+		var l model.Lecturer
+		if err := rows.Scan(&l.ID, &l.UserID, &l.LecturerID, &l.Department, &l.CreatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, l)
+	}
+
+	return list, nil
+}
+
+func (r *lecturerPostgresRepo) Detail(id string) (*model.Lecturer, error) {
+	var l model.Lecturer
+
+	err := database.Pg.QueryRow(
+		context.Background(),
+		`SELECT id, user_id, lecturer_id, department, created_at FROM lecturers WHERE id=$1`,
+		id,
+	).Scan(&l.ID, &l.UserID, &l.LecturerID, &l.Department, &l.CreatedAt)
 
 	if err != nil {
 		return nil, errors.New("lecturer not found")

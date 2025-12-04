@@ -7,6 +7,7 @@ import (
 
     "github.com/gofiber/fiber/v2"
     "github.com/google/uuid"
+      "golang.org/x/crypto/bcrypt" 
 )
 
 type UserService struct {
@@ -42,39 +43,92 @@ func (s *UserService) Detail(c *fiber.Ctx) error {
 
 // CREATE USER
 func (s *UserService) Create(c *fiber.Ctx) error {
-    var body model.User
+    var body struct {
+        Username  string `json:"username"`
+        Email     string `json:"email"`
+        Password  string `json:"password"`
+        FullName  string `json:"full_name"`
+        RoleID    string `json:"role_id"`
+    }
+
     if err := c.BodyParser(&body); err != nil {
         return c.Status(400).JSON(fiber.Map{"error": "invalid body"})
     }
 
-    body.ID = uuid.New().String()
-    body.CreatedAt = time.Now()
-    body.UpdatedAt = time.Now()
+    // Hash password
+    hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), 12)
+    if err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": "failed to hash password"})
+    }
 
-    if err := s.UserRepo.Create(&body); err != nil {
+    user := model.User{
+        ID:           uuid.New().String(),
+        Username:     body.Username,
+        Email:        body.Email,
+        PasswordHash: string(hash),
+        FullName:     body.FullName,
+        RoleID:       body.RoleID,
+        IsActive:     true,                // default sesuai modul
+        CreatedAt:    time.Now(),
+        UpdatedAt:    time.Now(),
+    }
+
+    if err := s.UserRepo.Create(&user); err != nil {
         return c.Status(500).JSON(fiber.Map{"error": err.Error()})
     }
 
-    return c.JSON(body)
+    return c.JSON(user)
 }
+
 
 // UPDATE USER
 func (s *UserService) Update(c *fiber.Ctx) error {
     id := c.Params("id")
 
-    var body model.User
+    var body struct {
+        Username *string `json:"username"`
+        Email    *string `json:"email"`
+        FullName *string `json:"full_name"`
+        IsActive *bool   `json:"is_active"`
+    }
+
     if err := c.BodyParser(&body); err != nil {
         return c.Status(400).JSON(fiber.Map{"error": "invalid body"})
     }
 
-    body.UpdatedAt = time.Now()
+    // Ambil user lama dari DB
+    user, err := s.UserRepo.GetByID(id)
+    if err != nil {
+        return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+    }
 
-    if err := s.UserRepo.Update(id, &body); err != nil {
+    // Update hanya field yg dikirim
+    if body.Username != nil {
+        user.Username = *body.Username
+    }
+    if body.Email != nil {
+        user.Email = *body.Email
+    }
+    if body.FullName != nil {
+        user.FullName = *body.FullName
+    }
+    if body.IsActive != nil {
+        user.IsActive = *body.IsActive
+    }
+
+    // Password TIDAK DIUBAH !!!
+    // user.PasswordHash TETAP seperti sebelumnya
+
+    user.UpdatedAt = time.Now()
+
+    if err := s.UserRepo.Update(id, user); err != nil {
         return c.Status(500).JSON(fiber.Map{"error": err.Error()})
     }
 
-    return c.JSON(body)
+    return c.JSON(user)
 }
+
+
 
 // DELETE USER
 func (s *UserService) Delete(c *fiber.Ctx) error {

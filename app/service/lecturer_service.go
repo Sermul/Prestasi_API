@@ -8,11 +8,16 @@ import (
 
 type LecturerService struct {
     StudentRepo repository.StudentPostgresRepository
+     LecturerRepo repository.LecturerPostgresRepository
 }
 
-func NewLecturerService(studentRepo repository.StudentPostgresRepository) *LecturerService {
+func NewLecturerService(
+    studentRepo repository.StudentPostgresRepository,
+    lecturerRepo repository.LecturerPostgresRepository,
+) *LecturerService {
     return &LecturerService{
-        StudentRepo: studentRepo,
+        StudentRepo:  studentRepo,
+        LecturerRepo: lecturerRepo,
     }
 }
 
@@ -25,4 +30,20 @@ func (s *LecturerService) ListAdvisees(c *fiber.Ctx) error {
     }
 
     return c.JSON(students)
+}
+func (s *LecturerService) List(c *fiber.Ctx) error {
+	list, err := s.LecturerRepo.List()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(list)
+}
+
+func (s *LecturerService) Detail(c *fiber.Ctx) error {
+	id := c.Params("id")
+	l, err := s.LecturerRepo.Detail(id)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Lecturer not found"})
+	}
+	return c.JSON(l)
 }

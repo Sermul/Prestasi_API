@@ -59,7 +59,8 @@ if err := database.ConnectMongo(); err != nil {
 	}
 // === Tambahkan service lainnya sesuai modul ===
 userSvc := service.NewUserService(userRepo, roleRepo)
-lecturerSvc := service.NewLecturerService(studentRepo)
+lecturerSvc := service.NewLecturerService(studentRepo, lecturerRepo)
+
 reportSvc := service.NewReportService(achievementPostgresRepo, studentRepo)
 
 	// ===== ROUTES =====
@@ -69,6 +70,9 @@ route.UserRouter(app, userSvc)
 route.LecturerRouter(app, lecturerSvc)
 route.AdminAchievementRouter(app, achievementSvc)
 route.ReportRouter(app, reportSvc)
+studentSvc := service.NewStudentService(studentRepo, lecturerRepo)
+route.StudentRouter(app, studentSvc)
+
 
 
 	log.Println("🚀 Prestasi API berjalan di port 3000...")

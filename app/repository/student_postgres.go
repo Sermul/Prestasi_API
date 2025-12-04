@@ -12,7 +12,7 @@ type StudentPostgresRepository interface {
     GetByID(studentID string) (*model.Student, error)
     GetByUserID(userID string) (*model.Student, error)
     Create(student *model.Student) error
-
+     UpdateAdvisor(studentID, lecturerID string) error
 }
 
 type studentPostgresRepo struct{}
@@ -120,3 +120,16 @@ func (r *studentPostgresRepo) Create(s *model.Student) error {
     )
     return err
 }
+
+
+func (r *studentPostgresRepo) UpdateAdvisor(studentID, lecturerID string) error {
+    _, err := database.Pg.Exec(
+        context.Background(),
+        `UPDATE students 
+         SET advisor_id = $1, updated_at = NOW()
+         WHERE id = $2`,
+        lecturerID, studentID,
+    )
+    return err
+}
+
