@@ -44,49 +44,71 @@ func NewAuthService(
 }
 
 
-// =========================
-// REGISTER
-// =========================
 func (s *AuthService) Register(c *fiber.Ctx) error {
-	var body struct {
-		Username string `json:"username"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		FullName string `json:"full_name"`
-	}
+    var body struct {
+        Username string `json:"username"`
+        Email    string `json:"email"`
+        Password string `json:"password"`
+        FullName string `json:"full_name"`
+    }
 
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
-	}
+    if err := c.BodyParser(&body); err != nil {
+        return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+    }
 
-	hash, _ := bcrypt.GenerateFromPassword([]byte(body.Password), 12)
+    // Hash password
+    hash, _ := bcrypt.GenerateFromPassword([]byte(body.Password), 12)
 
-	// Ambil role default "Mahasiswa"
-	role, err := s.RoleRepo.GetByName("Mahasiswa")
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Role not found"})
-	}
+    // Ambil role "Mahasiswa"
+    role, err := s.RoleRepo.GetByName("Mahasiswa")
+    if err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": "Role not found"})
+    }
 
-	user := model.User{
-		ID:           uuid.New().String(),
-		Username:     body.Username,
-		Email:        body.Email,
-		PasswordHash: string(hash),
-		FullName:     body.FullName,
-		RoleID:       role.ID,
-		IsActive:     true,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-	}
+    // Buat user baru
+    user := model.User{
+        ID:           uuid.New().String(),
+        Username:     body.Username,
+        Email:        body.Email,
+        PasswordHash: string(hash),
+        FullName:     body.FullName,
+        RoleID:       role.ID,
+        IsActive:     true,
+        CreatedAt:    time.Now(),
+        UpdatedAt:    time.Now(),
+    }
 
-	if err := s.UserRepo.Create(&user); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
+    // Simpan user
+    if err := s.UserRepo.Create(&user); err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
 
-	return c.JSON(fiber.Map{
-		"message": "User registered",
-	})
+    // ==========================================
+    // AUTO CREATE STUDENT (SOLUSINYA DI SINI)
+    // ==========================================
+    if role.Name == "Mahasiswa" {
+        now := time.Now()
+        student := model.Student{
+            ID:           uuid.New().String(),
+            UserID:       user.ID,
+            StudentID:    body.Username,   // atau generate sendiri jika mau
+            ProgramStudy: "Teknik Informatika", // default
+            AcademicYear: "2023",               // default
+            AdvisorID:    nil,                  // bisa diisi nanti
+            CreatedAt:    &now,
+            UpdatedAt:    &now,
+        }
+
+        if err := s.StudentRepo.Create(&student); err != nil {
+            return c.Status(500).JSON(fiber.Map{"error": "failed to create student"})
+        }
+    }
+
+    return c.JSON(fiber.Map{
+        "message": "User registered successfully",
+    })
 }
+
 
 // =========================
 // LOGIN

@@ -11,6 +11,8 @@ type StudentPostgresRepository interface {
     GetStudentIDsByAdvisor(advisorID string) ([]string, error)
     GetByID(studentID string) (*model.Student, error)
     GetByUserID(userID string) (*model.Student, error)
+    Create(student *model.Student) error
+
 }
 
 type studentPostgresRepo struct{}
@@ -107,4 +109,14 @@ func (r *studentPostgresRepo) GetByUserID(userID string) (*model.Student, error)
     }
 
     return &s, nil
+}
+func (r *studentPostgresRepo) Create(s *model.Student) error {
+    _, err := database.Pg.Exec(
+        context.Background(),
+        `INSERT INTO students 
+        (id, user_id, student_id, program_study, academic_year, advisor_id, created_at, updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        s.ID, s.UserID, s.StudentID, s.ProgramStudy, s.AcademicYear, s.AdvisorID, s.CreatedAt, s.UpdatedAt,
+    )
+    return err
 }
