@@ -40,18 +40,36 @@ if err := database.ConnectMongo(); err != nil {
 	roleRepo := repository.NewRolePostgresRepository()
 	permissionRepo := repository.NewPermissionPostgresRepository()
 	rolePermissionRepo := repository.NewRolePermissionPostgresRepository()
-
+	lecturerRepo := repository.NewLecturerPostgresRepository()
 	// ===== SERVICE =====
-	authSvc := service.NewAuthService(userRepo, roleRepo, permissionRepo, rolePermissionRepo,studentRepo)
+	authSvc := service.NewAuthService(
+    userRepo,
+    roleRepo,
+    permissionRepo,
+    rolePermissionRepo,
+    studentRepo,
+    lecturerRepo,  // <--- TAMBAH INI
+)
+
 	achievementSvc := &service.AchievementService{
 		MongoRepo:    achievementMongoRepo,
 		PostgresRepo: achievementPostgresRepo,
 		StudentRepo:  studentRepo,
+		
 	}
+// === Tambahkan service lainnya sesuai modul ===
+userSvc := service.NewUserService(userRepo, roleRepo)
+lecturerSvc := service.NewLecturerService(studentRepo)
+reportSvc := service.NewReportService(achievementPostgresRepo, studentRepo)
 
 	// ===== ROUTES =====
 	route.AuthRouter(app, authSvc)
-	route.AchievementRouter(app, achievementSvc)
+route.AchievementRouter(app, achievementSvc)
+route.UserRouter(app, userSvc)
+route.LecturerRouter(app, lecturerSvc)
+route.AdminAchievementRouter(app, achievementSvc)
+route.ReportRouter(app, reportSvc)
+
 
 	log.Println("🚀 Prestasi API berjalan di port 3000...")
 	app.Listen(":3000")

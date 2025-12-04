@@ -94,9 +94,18 @@ func (s *UserService) ChangeRole(c *fiber.Ctx) error {
     var body struct {
         RoleID string `json:"role_id"`
     }
-    c.BodyParser(&body)
+    if err := c.BodyParser(&body); err != nil {
+        return c.Status(400).JSON(fiber.Map{"error": "invalid body"})
+    }
 
-    if err := s.UserRepo.UpdateRole(id, body.RoleID); err != nil {
+    // VALIDASI role_id ada di tabel roles
+    role, err := s.RoleRepo.GetByID(body.RoleID)
+    if err != nil {
+        return c.Status(400).JSON(fiber.Map{"error": "invalid role_id"})
+    }
+
+    // Update role user
+    if err := s.UserRepo.UpdateRole(id, role.ID); err != nil {
         return c.Status(500).JSON(fiber.Map{"error": err.Error()})
     }
 

@@ -30,7 +30,9 @@ func JWTMiddleware() fiber.Handler {
 
 	
 		c.Locals("user_id", claims["user_id"])
-		c.Locals("role", claims["role"])
+		c.Locals("role_id", claims["role_id"])
+c.Locals("student_id", claims["student_id"])
+
 
 
 

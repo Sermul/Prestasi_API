@@ -8,11 +8,12 @@ import (
 
 var SecretKey = []byte("SECRET_KEY")
 
-func GenerateToken(userID string, role string) (string, error) {
+func GenerateToken(userID string, roleID string, studentID string) (string, error) {
     claims := jwt.MapClaims{
-        "user_id": userID,
-        "role":    role,
-        "exp":     time.Now().Add(24 * time.Hour).Unix(),
+        "user_id":    userID,
+        "role_id":    roleID,
+        "student_id": studentID, // boleh "" kalau bukan mahasiswa
+        "exp":        time.Now().Add(24 * time.Hour).Unix(),
     }
 
     token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
