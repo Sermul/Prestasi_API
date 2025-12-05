@@ -15,32 +15,25 @@ func AuthRouter(app *fiber.App, svc *service.AuthService) {
 	api.Post("/logout", middleware.JWTMiddleware(), svc.Logout)
 	api.Get("/profile", middleware.JWTMiddleware(), svc.Profile)
 }
-
-// ACHIEVEMENT ROUTER (Mahasiswa)
+// ACHIEVEMENT (Mahasiswa)
 func AchievementRouter(app *fiber.App, svc *service.AchievementService) {
     api := app.Group("/api/v1/achievements",
         middleware.JWTMiddleware(),
     )
-
     // Mahasiswa only
     api.Post("/", middleware.RoleGuard("Mahasiswa"), svc.Create)
     api.Put("/:refId", middleware.RoleGuard("Mahasiswa"), svc.Update)
     api.Delete("/:refId", middleware.RoleGuard("Mahasiswa"), svc.Delete)
     api.Post("/:refId/submit", middleware.RoleGuard("Mahasiswa"), svc.Submit)
     api.Post("/:refId/attachments", middleware.RoleGuard("Mahasiswa"), svc.UploadAttachment)
-
     // Dosen Wali
     api.Post("/:refId/verify", middleware.RoleGuard("Dosen Wali"), svc.Verify)
     api.Post("/:refId/reject", middleware.RoleGuard("Dosen Wali"), svc.Reject)
-
     // Semua role bisa lihat (sesuai role)
     api.Get("/", svc.List)
     api.Get("/:refId", svc.Detail)
     api.Get("/:refId/history", svc.History)
 }
-
-
-
 // Dosen Wali
 func LecturerRouter(app *fiber.App, svc *service.LecturerService) {
     api := app.Group("/api/v1/lecturers",
@@ -50,7 +43,6 @@ func LecturerRouter(app *fiber.App, svc *service.LecturerService) {
     api.Get("/", svc.List)
     api.Get("/:id/advisees", svc.ListAdvisees)
 }
-
 // USER ROUTER (Admin)
 func UserRouter(app *fiber.App, svc *service.UserService) {
 	api := app.Group("/api/v1/users",
@@ -65,28 +57,14 @@ func UserRouter(app *fiber.App, svc *service.UserService) {
 	api.Delete("/:id", svc.Delete)
 	api.Put("/:id/role", svc.ChangeRole)
 }
-
 // ADMIN ACHIEVEMENT ROUTER
 func AdminAchievementRouter(app *fiber.App, svc *service.AchievementService) {
 	api := app.Group("/api/v1/admin/achievements",
 		middleware.JWTMiddleware(),
 		middleware.RoleGuard("Admin"),
 	)
-
 	api.Get("/", svc.AdminList)
 }
-
-func StudentRouter(app *fiber.App, svc *service.StudentService) {
-    api := app.Group("/api/v1/students",
-        middleware.JWTMiddleware(),
-        middleware.RoleGuard("Admin"), // Admin yang assign doswal
-    )
-
-    api.Put("/:id/advisor", svc.AssignAdvisor)
-}
-
-
-
 // REPORT ROUTER
 func ReportRouter(app *fiber.App, svc *service.ReportService) {
 	api := app.Group("/api/v1/reports",
@@ -96,3 +74,16 @@ func ReportRouter(app *fiber.App, svc *service.ReportService) {
 	api.Get("/statistics", svc.Statistics)
 	api.Get("/student/:id", svc.StudentReport)
 }
+//Students & Lecturers 
+func StudentRouter(app *fiber.App, svc *service.StudentService) {
+    api := app.Group("/api/v1/students",
+        middleware.JWTMiddleware(),
+        middleware.RoleGuard("Admin"),
+    )
+
+    api.Get("/", svc.List)                  
+    api.Get("/:id", svc.Detail)
+    api.Get("/:id/achievements", svc.Achievements)
+    api.Put("/:id/advisor", svc.AssignAdvisor)
+}
+

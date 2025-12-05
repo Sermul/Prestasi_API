@@ -13,7 +13,9 @@ type StudentPostgresRepository interface {
     GetByUserID(userID string) (*model.Student, error)
     Create(student *model.Student) error
      UpdateAdvisor(studentID, lecturerID string) error
-}
+    GetAll() ([]*model.Student, error)
+GetStudentAchievements(studentID string) ([]*model.AchievementReference, error)
+    }
 
 type studentPostgresRepo struct{}
 
@@ -133,3 +135,64 @@ func (r *studentPostgresRepo) UpdateAdvisor(studentID, lecturerID string) error 
     return err
 }
 
+
+func (r *studentPostgresRepo) GetAll() ([]*model.Student, error) {
+    rows, err := database.Pg.Query(context.Background(),
+        `SELECT id, user_id, student_id, program_study, academic_year,
+                advisor_id, created_at, updated_at
+         FROM students
+         ORDER BY created_at DESC`)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var result []*model.Student
+
+    for rows.Next() {
+        var s model.Student
+        if err := rows.Scan(
+            &s.ID, &s.UserID, &s.StudentID,
+            &s.ProgramStudy, &s.AcademicYear,
+            &s.AdvisorID, &s.CreatedAt, &s.UpdatedAt,
+        ); err != nil {
+            return nil, err
+        }
+        result = append(result, &s)
+    }
+
+    return result, nil
+}
+func (r *studentPostgresRepo) GetStudentAchievements(studentID string) ([]*model.AchievementReference, error) {
+    rows, err := database.Pg.Query(context.Background(),
+        `SELECT id, student_id, mongo_achievement_id, status,
+                submitted_at, verified_at, verified_by,
+                rejection_note, created_at, updated_at
+         FROM achievement_references
+         WHERE student_id = $1
+         ORDER BY created_at DESC`,
+        studentID,
+    )
+    if err != nil {
+        return nil, err
+    }
+
+    defer rows.Close()
+
+    var list []*model.AchievementReference
+
+    for rows.Next() {
+        var a model.AchievementReference
+        if err := rows.Scan(
+            &a.ID, &a.StudentID, &a.MongoID,
+            &a.Status, &a.SubmittedAt, &a.VerifiedAt,
+            &a.VerifiedBy, &a.RejectionNote,
+            &a.CreatedAt, &a.UpdatedAt,
+        ); err != nil {
+            return nil, err
+        }
+        list = append(list, &a)
+    }
+
+    return list, nil
+}
