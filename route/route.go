@@ -10,7 +10,6 @@ import (
 // AUTH ROUTER
 func AuthRouter(app *fiber.App, svc *service.AuthService) {
 	api := app.Group("/api/v1/auth")
-	api.Post("/register", svc.Register)
 	api.Post("/login", svc.Login)
 	api.Post("/refresh", svc.Refresh)
 	api.Post("/logout", middleware.JWTMiddleware(), svc.Logout)

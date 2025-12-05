@@ -38,18 +38,15 @@ if err := database.ConnectMongo(); err != nil {
 	studentRepo := repository.NewStudentPostgresRepository()
 	userRepo := repository.NewUserPostgresRepository()
 	roleRepo := repository.NewRolePostgresRepository()
-	permissionRepo := repository.NewPermissionPostgresRepository()
-	rolePermissionRepo := repository.NewRolePermissionPostgresRepository()
 	lecturerRepo := repository.NewLecturerPostgresRepository()
 	// ===== SERVICE =====
 	authSvc := service.NewAuthService(
     userRepo,
     roleRepo,
-    permissionRepo,
-    rolePermissionRepo,
     studentRepo,
-    lecturerRepo,  // <--- TAMBAH INI
+    lecturerRepo,
 )
+
 
 	achievementSvc := &service.AchievementService{
 		MongoRepo:    achievementMongoRepo,

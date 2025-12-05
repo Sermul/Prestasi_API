@@ -2,9 +2,12 @@ package middleware
 
 import (
 	"strings"
+    
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"prestasi_api/helper"
+
 )
 
 var secret = []byte("SECRET_KEY")
@@ -36,6 +39,10 @@ func JWTMiddleware() fiber.Handler {
 c.Locals("student_id", claims["student_id"])
 
 
+// ==== Cek blacklist ====
+if helper.IsBlacklisted(tokenStr) {
+    return c.Status(401).JSON(fiber.Map{"error": "token expired or revoked"})
+}
 
 
 		return c.Next()

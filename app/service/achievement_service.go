@@ -20,44 +20,79 @@ type AchievementService struct {
 
 // FR-003 — CREATE ACHIEVEMENT
 func (s *AchievementService) Create(c *fiber.Ctx) error {
-	var data model.AchievementMongo
+    var data model.AchievementMongo
 
-	if err := c.BodyParser(&data); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
-	}
+    if err := c.BodyParser(&data); err != nil {
+        return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+    }
 
-	// Validasi student
-	student, _ := s.StudentRepo.GetByID(data.StudentID)
-	if student == nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid student ID"})
-	}
+    // Ambil student ID dari token (wajib)
+    studentID, ok := c.Locals("student_id").(string)
+    if !ok || studentID == "" {
+        return c.Status(401).JSON(fiber.Map{"error": "student not found in token"})
+    }
+    data.StudentID = studentID
 
-	// Create Mongo achievement
-	mongoID, err := s.MongoRepo.CreateAchievementMongo(&data)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
+    // Set timestamps
+    now := time.Now()
+    data.CreatedAt = now
+    data.UpdatedAt = now
 
-	// Create Postgres reference
-	ref := model.AchievementReference{
-		ID:        uuid.New().String(),
-		StudentID: data.StudentID,
-		MongoID:   mongoID.Hex(),
-		Status:    "draft",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
+    // Hitung poin otomatis (fungsi di bawah)
+    data.Points = calculatePoints(&data)
 
-	if err := s.PostgresRepo.CreateReferencePostgres(&ref); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
+    // Create Mongo achievement
+    mongoID, err := s.MongoRepo.CreateAchievementMongo(&data)
+    if err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
 
-	return c.JSON(fiber.Map{
-		"message":     "Achievement created",
-		"referenceID": ref.ID,
-		"mongoID":     mongoID.Hex(),
-	})
+    // Create Postgres reference
+    ref := model.AchievementReference{
+        ID:        uuid.New().String(),
+        StudentID: studentID,
+        MongoID:   mongoID.Hex(),
+        Status:    "draft",
+        CreatedAt: now,
+        UpdatedAt: now,
+    }
+
+    if err := s.PostgresRepo.CreateReferencePostgres(&ref); err != nil {
+        return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    return c.JSON(fiber.Map{
+        "message":     "Achievement created",
+        "referenceID": ref.ID,
+        "mongoID":     mongoID.Hex(),
+    })
 }
+func calculatePoints(a *model.AchievementMongo) int {
+    switch a.AchievementType {
+    case "competition":
+        switch a.Details.CompetitionLevel {
+        case "international":
+            return 200
+        case "national":
+            return 100
+        case "provincial":
+            return 60
+        case "city":
+            return 40
+        default:
+            return 20
+        }
+    case "publication":
+        return 150
+    case "organization":
+        return 50
+    case "certification":
+        return 80
+    default:
+        return 10
+    }
+}
+
 
 //
 func (s *AchievementService) Submit(c *fiber.Ctx) error {

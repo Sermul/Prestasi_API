@@ -14,7 +14,7 @@ type AchievementMongo struct {
     Description     string               `bson:"description" json:"description"`
     Details         AchievementDetails   `bson:"details" json:"details"`
     Tags            []string             `bson:"tags" json:"tags"`
-    Points          int                  `bson:"points" json:"points"`
+    Points          int                  `bson:"points,omitempty" json:"points,omitempty"`
     CreatedAt       time.Time            `bson:"createdAt" json:"createdAt"`
     UpdatedAt       time.Time            `bson:"updatedAt" json:"updatedAt"`
     DeletedAt       *time.Time           `bson:"deletedAt,omitempty" json:"deletedAt"`

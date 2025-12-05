@@ -6,6 +6,6 @@ import (
 )
 
 func main() {
-    hash, _ := bcrypt.GenerateFromPassword([]byte("dosen123"), 12)
+   hash, _ := bcrypt.GenerateFromPassword([]byte("123456"), 12)
     fmt.Println(string(hash))
 }
