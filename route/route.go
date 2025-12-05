@@ -24,20 +24,21 @@ func AchievementRouter(app *fiber.App, svc *service.AchievementService) {
 
     // Mahasiswa only
     api.Post("/", middleware.RoleGuard("Mahasiswa"), svc.Create)
-    api.Put("/:id", middleware.RoleGuard("Mahasiswa"), svc.Update)
-    api.Delete("/:id", middleware.RoleGuard("Mahasiswa"), svc.Delete)
-    api.Post("/:id/submit", middleware.RoleGuard("Mahasiswa"), svc.Submit)
-    api.Post("/:id/attachments", middleware.RoleGuard("Mahasiswa"), svc.UploadAttachment)
+    api.Put("/:refId", middleware.RoleGuard("Mahasiswa"), svc.Update)
+    api.Delete("/:refId", middleware.RoleGuard("Mahasiswa"), svc.Delete)
+    api.Post("/:refId/submit", middleware.RoleGuard("Mahasiswa"), svc.Submit)
+    api.Post("/:refId/attachments", middleware.RoleGuard("Mahasiswa"), svc.UploadAttachment)
 
-    // DOSEN WALI
-    api.Post("/:id/verify", middleware.RoleGuard("Dosen Wali"), svc.Verify)
-    api.Post("/:id/reject", middleware.RoleGuard("Dosen Wali"), svc.Reject)
+    // Dosen Wali
+    api.Post("/:refId/verify", middleware.RoleGuard("Dosen Wali"), svc.Verify)
+    api.Post("/:refId/reject", middleware.RoleGuard("Dosen Wali"), svc.Reject)
 
-    // Semua role bisa lihat
-    api.Get("/", svc.ListOwn) // atau ListAll di modul
-    api.Get("/:id", svc.Detail)
-    api.Get("/:id/history", svc.History)
+    // Semua role bisa lihat (sesuai role)
+    api.Get("/", svc.List)
+    api.Get("/:refId", svc.Detail)
+    api.Get("/:refId/history", svc.History)
 }
+
 
 
 // Dosen Wali

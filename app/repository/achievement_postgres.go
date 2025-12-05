@@ -18,7 +18,7 @@ type AchievementPostgresRepository interface {
 	GetReferenceByID(refID string) (*model.AchievementReference, error)
 	GetByStudentIDs(studentIDs []string) ([]model.AchievementReference, error)
 	UpdateVerifyStatus(refID string, verifierID string) error
-	RejectReference(refID string, advisorID string, note string) error
+	RejectReference(refID string, userID string, note string) error
 	SaveSubmittedAt(refID string, t time.Time) error
 	GetByStudentID(studentID string) ([]model.AchievementReference, error)
 	GetAllReferences() ([]model.AchievementReference, error)
@@ -128,18 +128,18 @@ func (r *achievementPostgresRepo) GetByStudentIDs(studentIDs []string) ([]model.
 }
 
 // VERIFY
-func (r *achievementPostgresRepo) UpdateVerifyStatus(refID string, verifierID string) error {
+func (r *achievementPostgresRepo) UpdateVerifyStatus(refID string, userID string) error {
 	_, err := r.pool.Exec(
 		context.Background(),
 		`UPDATE achievement_references
 		 SET status='verified', verified_by=$1, verified_at=NOW(), updated_at=NOW()
 		 WHERE id=$2`,
-		verifierID, refID)
+		userID, refID) 
 	return err
 }
 
 // REJECT
-func (r *achievementPostgresRepo) RejectReference(refID string, advisorID string, note string) error {
+func (r *achievementPostgresRepo) RejectReference(refID string, userID string, note string) error {
 	_, err := r.pool.Exec(
 		context.Background(),
 		`UPDATE achievement_references
@@ -147,9 +147,10 @@ func (r *achievementPostgresRepo) RejectReference(refID string, advisorID string
 		     verified_by=$2, verified_at=NOW(),
 		     updated_at=NOW()
 		 WHERE id=$3`,
-		note, advisorID, refID)
+		note, userID, refID)
 	return err
 }
+
 
 // SAVE SUBMITTED_AT
 func (r *achievementPostgresRepo) SaveSubmittedAt(refID string, t time.Time) error {
