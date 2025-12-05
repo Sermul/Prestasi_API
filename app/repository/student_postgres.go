@@ -12,10 +12,10 @@ type StudentPostgresRepository interface {
     GetByID(studentID string) (*model.Student, error)
     GetByUserID(userID string) (*model.Student, error)
     Create(student *model.Student) error
-     UpdateAdvisor(studentID, lecturerID string) error
+    UpdateAdvisor(studentID, lecturerID string) error
     GetAll() ([]*model.Student, error)
-GetStudentAchievements(studentID string) ([]*model.AchievementReference, error)
-    }
+    GetStudentAchievements(studentID string) ([]*model.AchievementReference, error)
+}
 
 type studentPostgresRepo struct{}
 
@@ -23,9 +23,9 @@ func NewStudentPostgresRepository() StudentPostgresRepository {
     return &studentPostgresRepo{}
 }
 
-// ================================
-// GetStudentIDsByAdvisor
-// ================================
+/* ================================
+   GetStudentIDsByAdvisor
+================================ */
 func (r *studentPostgresRepo) GetStudentIDsByAdvisor(advisorID string) ([]string, error) {
     rows, err := database.Pg.Query(
         context.Background(),
@@ -49,29 +49,25 @@ func (r *studentPostgresRepo) GetStudentIDsByAdvisor(advisorID string) ([]string
     return ids, nil
 }
 
-// ================================
-// GetByID
-// ================================
-func (r *studentPostgresRepo) GetByID(studentID string) (*model.Student, error) {
+/* ================================
+   GetByID  (FIXED)
+================================ */
+func (r *studentPostgresRepo) GetByID(id string) (*model.Student, error) {
     var s model.Student
 
     err := database.Pg.QueryRow(
         context.Background(),
-        `SELECT id, user_id, student_id, program_study, academic_year, advisor_id,
-                created_at, updated_at
+        `SELECT 
+            id, user_id, student_id, program_study, academic_year,
+            COALESCE(advisor_id, '') AS advisor_id,
+            created_at, updated_at
          FROM students
          WHERE id = $1 OR student_id = $1
          LIMIT 1`,
-        studentID,
+        id,
     ).Scan(
-        &s.ID,
-        &s.UserID,
-        &s.StudentID,
-        &s.ProgramStudy,
-        &s.AcademicYear,
-        &s.AdvisorID,
-        &s.CreatedAt,
-        &s.UpdatedAt,
+        &s.ID, &s.UserID, &s.StudentID, &s.ProgramStudy,
+        &s.AcademicYear, &s.AdvisorID, &s.CreatedAt, &s.UpdatedAt,
     )
 
     if err != nil {
@@ -81,29 +77,23 @@ func (r *studentPostgresRepo) GetByID(studentID string) (*model.Student, error) 
     return &s, nil
 }
 
-// ================================
-// GetByUserID
-// ================================
+/* ================================
+   GetByUserID
+================================ */
 func (r *studentPostgresRepo) GetByUserID(userID string) (*model.Student, error) {
     var s model.Student
 
     err := database.Pg.QueryRow(
         context.Background(),
-        `SELECT id, user_id, student_id, program_study, academic_year, advisor_id,
-                created_at, updated_at
+        `SELECT id, user_id, student_id, program_study, academic_year,
+                advisor_id, created_at, updated_at
          FROM students
          WHERE user_id = $1
          LIMIT 1`,
         userID,
     ).Scan(
-        &s.ID,
-        &s.UserID,
-        &s.StudentID,
-        &s.ProgramStudy,
-        &s.AcademicYear,
-        &s.AdvisorID,
-        &s.CreatedAt,
-        &s.UpdatedAt,
+        &s.ID, &s.UserID, &s.StudentID, &s.ProgramStudy,
+        &s.AcademicYear, &s.AdvisorID, &s.CreatedAt, &s.UpdatedAt,
     )
 
     if err != nil {
@@ -112,18 +102,25 @@ func (r *studentPostgresRepo) GetByUserID(userID string) (*model.Student, error)
 
     return &s, nil
 }
+
+/* ================================
+   Create
+================================ */
 func (r *studentPostgresRepo) Create(s *model.Student) error {
     _, err := database.Pg.Exec(
         context.Background(),
         `INSERT INTO students 
         (id, user_id, student_id, program_study, academic_year, advisor_id, created_at, updated_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        s.ID, s.UserID, s.StudentID, s.ProgramStudy, s.AcademicYear, s.AdvisorID, s.CreatedAt, s.UpdatedAt,
+        s.ID, s.UserID, s.StudentID, s.ProgramStudy,
+        s.AcademicYear, s.AdvisorID, s.CreatedAt, s.UpdatedAt,
     )
     return err
 }
 
-
+/* ================================
+   UpdateAdvisor
+================================ */
 func (r *studentPostgresRepo) UpdateAdvisor(studentID, lecturerID string) error {
     _, err := database.Pg.Exec(
         context.Background(),
@@ -135,7 +132,9 @@ func (r *studentPostgresRepo) UpdateAdvisor(studentID, lecturerID string) error 
     return err
 }
 
-
+/* ================================
+   GetAll
+================================ */
 func (r *studentPostgresRepo) GetAll() ([]*model.Student, error) {
     rows, err := database.Pg.Query(context.Background(),
         `SELECT id, user_id, student_id, program_study, academic_year,
@@ -163,6 +162,10 @@ func (r *studentPostgresRepo) GetAll() ([]*model.Student, error) {
 
     return result, nil
 }
+
+/* ================================
+   GetStudentAchievements (FIXED TYPO)
+================================ */
 func (r *studentPostgresRepo) GetStudentAchievements(studentID string) ([]*model.AchievementReference, error) {
     rows, err := database.Pg.Query(context.Background(),
         `SELECT id, student_id, mongo_achievement_id, status,
