@@ -559,7 +559,7 @@ func (s *AchievementService) Update(c *fiber.Ctx) error {
 // FR — UPLOAD ATTACHMENT
 func (s *AchievementService) UploadAttachment(c *fiber.Ctx) error {
     refID := c.Params("refId")
-    role, _ := c.Locals("role").(string)
+   role, _ := c.Locals("role").(string)
 
     // ❌ Mahasiswa tidak boleh mengirim studentId di form-data
     if role == "Mahasiswa" && c.FormValue("studentId") != "" {
@@ -578,6 +578,17 @@ func (s *AchievementService) UploadAttachment(c *fiber.Ctx) error {
         return c.Status(404).JSON(fiber.Map{"error": "reference not found"})
     }
 
+    // 💥 PERBAIKAN DI SINI
+    if role == "Mahasiswa" {
+        studentID := c.Locals("student_id").(string)
+
+        if ref.StudentID != studentID {
+            return c.Status(403).JSON(fiber.Map{
+                "error": "Anda tidak boleh mengunggah lampiran ke prestasi milik mahasiswa lain",
+            })
+        }
+    }
+
     oid, _ := primitive.ObjectIDFromHex(ref.MongoID)
 
     url, err := s.MongoRepo.AddAttachmentMongo(oid, file)
@@ -590,6 +601,8 @@ func (s *AchievementService) UploadAttachment(c *fiber.Ctx) error {
         "url":     url,
     })
 }
+
+
 
 
 // HISTORY — lihat perubahan status prestasi
