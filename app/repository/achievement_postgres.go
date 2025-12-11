@@ -23,6 +23,8 @@ type AchievementPostgresRepository interface {
 	GetByStudentID(studentID string) ([]model.AchievementReference, error)
 	GetAllReferences() ([]model.AchievementReference, error)
 	GetHistoryByReferenceID(refID string) ([]map[string]interface{}, error)
+	InsertHistory(h *model.AchievementReferenceHistory) error
+
 }
 
 type achievementPostgresRepo struct {
@@ -218,49 +220,52 @@ func (r *achievementPostgresRepo) GetAllReferences() ([]model.AchievementReferen
 	return refs, nil
 }
 
-// HISTORY
+
 func (r *achievementPostgresRepo) GetHistoryByReferenceID(refID string) ([]map[string]interface{}, error) {
-	rows, err := r.pool.Query(context.Background(),
-		`SELECT status, note, changed_by, changed_at
-		 FROM achievement_reference_history
-		 WHERE reference_id=$1
-		 ORDER BY changed_at ASC`,
-		refID)
+    rows, err := r.pool.Query(context.Background(),
+        `SELECT old_status, new_status, note, changed_by, changed_by_role, created_at
+         FROM achievement_reference_history
+         WHERE reference_id=$1
+         ORDER BY created_at ASC`,
+        refID)
 
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
 
-	var history []map[string]interface{}
-	for rows.Next() {
-		var status, note, changedBy *string
-		var changedAt *time.Time
+    var history []map[string]interface{}
 
-		rows.Scan(&status, &note, &changedBy, &changedAt)
+    for rows.Next() {
+        var oldStatus, newStatus, note, changedBy, changedByRole *string
+        var createdAt *time.Time
 
-		entry := map[string]interface{}{
-			"status":     nil,
-			"note":       nil,
-			"changed_by": nil,
-			"changed_at": nil,
-		}
+        rows.Scan(&oldStatus, &newStatus, &note, &changedBy, &changedByRole, &createdAt)
 
-		if status != nil {
-			entry["status"] = *status
-		}
-		if note != nil {
-			entry["note"] = *note
-		}
-		if changedBy != nil {
-			entry["changed_by"] = *changedBy
-		}
-		if changedAt != nil {
-			entry["changed_at"] = *changedAt
-		}
+        entry := map[string]interface{}{
+            "old_status":      oldStatus,
+            "new_status":      newStatus,
+            "note":            note,
+            "changed_by":      changedBy,
+            "changed_by_role": changedByRole,
+            "created_at":      createdAt,
+        }
 
-		history = append(history, entry)
-	}
+        history = append(history, entry)
+    }
 
-	return history, nil
+    return history, nil
+}
+
+func (r *achievementPostgresRepo) InsertHistory(h *model.AchievementReferenceHistory) error {
+    _, err := r.pool.Exec(
+        context.Background(),
+        `INSERT INTO achievement_reference_history
+            (id, reference_id, old_status, new_status, note,
+             changed_by, changed_by_role, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        h.ID, h.ReferenceID, h.OldStatus, h.NewStatus, h.Note,
+        h.ChangedBy, h.ChangedByRole, h.CreatedAt,
+    )
+    return err
 }

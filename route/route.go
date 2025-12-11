@@ -20,20 +20,34 @@ func AchievementRouter(app *fiber.App, svc *service.AchievementService) {
     api := app.Group("/api/v1/achievements",
         middleware.JWTMiddleware(),
     )
-    // Mahasiswa only
-    api.Post("/", middleware.RoleGuard("Mahasiswa"), svc.Create)
-    api.Put("/:refId", middleware.RoleGuard("Mahasiswa"), svc.Update)
-    api.Delete("/:refId", middleware.RoleGuard("Mahasiswa"), svc.Delete)
-    api.Post("/:refId/submit", middleware.RoleGuard("Mahasiswa"), svc.Submit)
-    api.Post("/:refId/attachments", middleware.RoleGuard("Mahasiswa"), svc.UploadAttachment)
-    // Dosen Wali
-    api.Post("/:refId/verify", middleware.RoleGuard("Dosen Wali"), svc.Verify)
-    api.Post("/:refId/reject", middleware.RoleGuard("Dosen Wali"), svc.Reject)
-    // Semua role bisa lihat (sesuai role)
+
+    // Create => Mahasiswa & Admin
+    api.Post("/", middleware.RoleGuard("Mahasiswa", "Admin"), svc.Create)
+
+    // Update => Mahasiswa only
+    // Update => Mahasiswa & Admin
+api.Put("/:refId", middleware.RoleGuard("Mahasiswa", "Admin"), svc.Update)
+
+
+    // Delete => Mahasiswa & Admin
+    api.Delete("/:refId", middleware.RoleGuard("Mahasiswa", "Admin"), svc.Delete)
+
+    // Submit => Mahasiswa & Admin
+    api.Post("/:refId/submit", middleware.RoleGuard("Mahasiswa", "Admin"), svc.Submit)
+
+    // Upload attachment => Mahasiswa & Admin
+    api.Post("/:refId/attachments", middleware.RoleGuard("Mahasiswa", "Admin"), svc.UploadAttachment)
+
+    // Verify / Reject => Dosen Wali & Admin
+    api.Post("/:refId/verify", middleware.RoleGuard("Dosen Wali", "Admin"), svc.Verify)
+    api.Post("/:refId/reject", middleware.RoleGuard("Dosen Wali", "Admin"), svc.Reject)
+
+    // Everyone with token can read
     api.Get("/", svc.List)
     api.Get("/:refId", svc.Detail)
     api.Get("/:refId/history", svc.History)
 }
+
 // Dosen Wali
 func LecturerRouter(app *fiber.App, svc *service.LecturerService) {
     api := app.Group("/api/v1/lecturers",
