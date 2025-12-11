@@ -375,25 +375,44 @@ func buildAchievementResponse(c *fiber.Ctx, refs []model.AchievementReference, s
 }
 
 func (s *AchievementService) Detail(c *fiber.Ctx) error {
-    studentID, ok := c.Locals("student_id").(string)
-    if !ok {
-        return c.Status(400).JSON(fiber.Map{"error": "student not found in token"})
-    }
-
+    role := c.Locals("role").(string)
     refID := c.Params("refId")
 
-    // Ambil reference dari Postgres
+    // Ambil reference
     ref, err := s.PostgresRepo.GetReferenceByID(refID)
     if err != nil {
         return c.Status(404).JSON(fiber.Map{"error": "reference not found"})
     }
 
-    // Validasi: hanya pemilik yang boleh lihat
-    if ref.StudentID != studentID {
-        return c.Status(403).JSON(fiber.Map{"error": "not your achievement"})
+    // ROLE: Mahasiswa → hanya miliknya sendiri
+    if role == "Mahasiswa" {
+        studentID := c.Locals("student_id").(string)
+        if ref.StudentID != studentID {
+            return c.Status(403).JSON(fiber.Map{"error": "not your achievement"})
+        }
     }
 
-    // Ambil dari Mongo
+    // ROLE: Dosen Wali → hanya mahasiswa bimbingan
+    if role == "Dosen Wali" {
+        lecturerID := c.Locals("lecturer_id").(string)
+
+        studentIDs, _ := s.StudentRepo.GetStudentIDsByAdvisor(lecturerID)
+
+        isAdvisee := false
+        for _, sid := range studentIDs {
+            if sid == ref.StudentID {
+                isAdvisee = true
+                break
+            }
+        }
+        if !isAdvisee {
+            return c.Status(403).JSON(fiber.Map{"error": "not your advisee"})
+        }
+    }
+
+    // ROLE: Admin → bebas akses (tidak perlu validasi)
+
+    // Ambil data dari Mongo
     oid, _ := primitive.ObjectIDFromHex(ref.MongoID)
     achievement, err := s.MongoRepo.GetByID(oid)
     if err != nil {
@@ -405,6 +424,7 @@ func (s *AchievementService) Detail(c *fiber.Ctx) error {
         "achievement": achievement,
     })
 }
+
 
 // FR — UPDATE ACHIEVEMENT
 func (s *AchievementService) Update(c *fiber.Ctx) error {
