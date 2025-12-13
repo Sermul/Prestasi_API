@@ -52,7 +52,7 @@ api.Put("/:refId", middleware.RoleGuard("Mahasiswa", "Admin"), svc.Update)
 func LecturerRouter(app *fiber.App, svc *service.LecturerService) {
     api := app.Group("/api/v1/lecturers",
         middleware.JWTMiddleware(),
-        middleware.RoleGuard("Admin", "Dosen Wali"),
+        middleware.RoleGuard("Admin"),
     )
     api.Get("/", svc.List)
     api.Get("/:id/advisees", svc.ListAdvisees)
@@ -92,12 +92,12 @@ func ReportRouter(app *fiber.App, svc *service.ReportService) {
 func StudentRouter(app *fiber.App, svc *service.StudentService) {
     api := app.Group("/api/v1/students",
         middleware.JWTMiddleware(),
-        middleware.RoleGuard("Admin"),
+        middleware.RoleGuard("Admin", "Dosen Wali"),
     )
 
     api.Get("/", svc.List)                  
     api.Get("/:id", svc.Detail)
     api.Get("/:id/achievements", svc.Achievements)
-    api.Put("/:id/advisor", svc.AssignAdvisor)
+    api.Put("/:id/advisor", middleware.RoleGuard("Admin"), svc.AssignAdvisor)
 }
 

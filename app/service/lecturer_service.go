@@ -24,9 +24,23 @@ func NewLecturerService(
 func (s *LecturerService) ListAdvisees(c *fiber.Ctx) error {
     lecturerID := c.Params("id")
 
-    students, err := s.StudentRepo.GetStudentIDsByAdvisor(lecturerID)
+    ids, err := s.StudentRepo.GetStudentIDsByAdvisor(lecturerID)
     if err != nil {
         return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    var students []interface{}
+    for _, id := range ids {
+        st, err := s.StudentRepo.GetByID(id)
+        if err != nil {
+            // skip not found entries
+            continue
+        }
+        students = append(students, st)
+    }
+
+    if students == nil {
+        students = []interface{}{}
     }
 
     return c.JSON(students)

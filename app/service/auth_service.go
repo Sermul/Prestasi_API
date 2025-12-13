@@ -104,7 +104,7 @@ accessClaims := jwt.MapClaims{
     "role_id":     role.ID,      
     "role":        role.Name,
     "student_id":  studentID,
-    "lecturer_id": user.ID, //diubah utnutk verif
+    "lecturer_id": lecturerID,
     "exp":         time.Now().Add(24 * time.Hour).Unix(),
 }
 

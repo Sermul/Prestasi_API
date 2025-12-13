@@ -54,24 +54,31 @@ func (r *studentPostgresRepo) GetStudentIDsByAdvisor(advisorID string) ([]string
 ================================ */
 func (r *studentPostgresRepo) GetByID(id string) (*model.Student, error) {
     var s model.Student
+    var advisorID *string
 
     err := database.Pg.QueryRow(
         context.Background(),
         `SELECT 
             id, user_id, student_id, program_study, academic_year,
-            COALESCE(advisor_id, '') AS advisor_id,
+            advisor_id,
             created_at, updated_at
          FROM students
-         WHERE id = $1 OR student_id = $1
+         WHERE id::text = $1 OR student_id = $1
          LIMIT 1`,
         id,
     ).Scan(
         &s.ID, &s.UserID, &s.StudentID, &s.ProgramStudy,
-        &s.AcademicYear, &s.AdvisorID, &s.CreatedAt, &s.UpdatedAt,
+        &s.AcademicYear, &advisorID, &s.CreatedAt, &s.UpdatedAt,
     )
 
     if err != nil {
         return nil, errors.New("student not found")
+    }
+
+    if advisorID != nil {
+        s.AdvisorID = *advisorID
+    } else {
+        s.AdvisorID = ""
     }
 
     return &s, nil
@@ -82,6 +89,7 @@ func (r *studentPostgresRepo) GetByID(id string) (*model.Student, error) {
 ================================ */
 func (r *studentPostgresRepo) GetByUserID(userID string) (*model.Student, error) {
     var s model.Student
+    var advisorID *string
 
     err := database.Pg.QueryRow(
         context.Background(),
@@ -93,11 +101,17 @@ func (r *studentPostgresRepo) GetByUserID(userID string) (*model.Student, error)
         userID,
     ).Scan(
         &s.ID, &s.UserID, &s.StudentID, &s.ProgramStudy,
-        &s.AcademicYear, &s.AdvisorID, &s.CreatedAt, &s.UpdatedAt,
+        &s.AcademicYear, &advisorID, &s.CreatedAt, &s.UpdatedAt,
     )
 
     if err != nil {
         return nil, errors.New("student not found")
+    }
+
+    if advisorID != nil {
+        s.AdvisorID = *advisorID
+    } else {
+        s.AdvisorID = ""
     }
 
     return &s, nil
@@ -150,12 +164,18 @@ func (r *studentPostgresRepo) GetAll() ([]*model.Student, error) {
 
     for rows.Next() {
         var s model.Student
+        var advisorID *string
         if err := rows.Scan(
             &s.ID, &s.UserID, &s.StudentID,
             &s.ProgramStudy, &s.AcademicYear,
-            &s.AdvisorID, &s.CreatedAt, &s.UpdatedAt,
+            &advisorID, &s.CreatedAt, &s.UpdatedAt,
         ); err != nil {
             return nil, err
+        }
+        if advisorID != nil {
+            s.AdvisorID = *advisorID
+        } else {
+            s.AdvisorID = ""
         }
         result = append(result, &s)
     }
