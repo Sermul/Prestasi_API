@@ -15,6 +15,7 @@ type StudentPostgresRepository interface {
     UpdateAdvisor(studentID, lecturerID string) error
     GetAll() ([]*model.Student, error)
     GetStudentAchievements(studentID string) ([]*model.AchievementReference, error)
+    CountAll() (int, error) 
 }
 
 type studentPostgresRepo struct{}
@@ -29,7 +30,7 @@ func NewStudentPostgresRepository() StudentPostgresRepository {
 func (r *studentPostgresRepo) GetStudentIDsByAdvisor(advisorID string) ([]string, error) {
     rows, err := database.Pg.Query(
         context.Background(),
-        `SELECT id FROM students WHERE advisor_id = $1`,
+        `SELECT id FROM students WHERE advisor_id::text = $1`,
         advisorID,
     )
     if err != nil {
@@ -219,3 +220,14 @@ func (r *studentPostgresRepo) GetStudentAchievements(studentID string) ([]*model
 
     return list, nil
 }
+
+func (r *studentPostgresRepo) CountAll() (int, error) {
+	var total int
+	err := database.Pg.QueryRow(
+		context.Background(),
+		`SELECT COUNT(*) FROM students`,
+	).Scan(&total)
+
+	return total, err
+}
+

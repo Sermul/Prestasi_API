@@ -24,7 +24,9 @@ type AchievementPostgresRepository interface {
 	GetAllReferences() ([]model.AchievementReference, error)
 	GetHistoryByReferenceID(refID string) ([]map[string]interface{}, error)
 	InsertHistory(h *model.AchievementReferenceHistory) error
-
+	CountAll() (int, error)
+    CountByStudentID(studentID string) (int, error)
+    CountByStudentIDs(studentIDs []string) (int, error)
 }
 
 type achievementPostgresRepo struct {
@@ -268,4 +270,34 @@ func (r *achievementPostgresRepo) InsertHistory(h *model.AchievementReferenceHis
         h.ChangedBy, h.ChangedByRole, h.CreatedAt,
     )
     return err
+}
+
+func (r *achievementPostgresRepo) CountAll() (int, error) {
+	var total int
+	err := r.pool.QueryRow(
+		context.Background(),
+		`SELECT COUNT(*) FROM achievement_references`,
+	).Scan(&total)
+
+	return total, err
+}
+func (r *achievementPostgresRepo) CountByStudentID(studentID string) (int, error) {
+	var total int
+	err := r.pool.QueryRow(
+		context.Background(),
+		`SELECT COUNT(*) FROM achievement_references WHERE student_id=$1`,
+		studentID,
+	).Scan(&total)
+
+	return total, err
+}
+func (r *achievementPostgresRepo) CountByStudentIDs(studentIDs []string) (int, error) {
+	var total int
+	err := r.pool.QueryRow(
+		context.Background(),
+		`SELECT COUNT(*) FROM achievement_references WHERE student_id = ANY($1)`,
+		studentIDs,
+	).Scan(&total)
+
+	return total, err
 }
