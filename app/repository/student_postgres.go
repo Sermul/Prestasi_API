@@ -16,6 +16,7 @@ type StudentPostgresRepository interface {
     GetAll() ([]*model.Student, error)
     GetStudentAchievements(studentID string) ([]*model.AchievementReference, error)
     CountAll() (int, error) 
+    IsStudentOfAdvisor(studentID, lecturerUserID string) (bool, error)
 }
 
 type studentPostgresRepo struct{}
@@ -230,4 +231,24 @@ func (r *studentPostgresRepo) CountAll() (int, error) {
 
 	return total, err
 }
+
+
+
+func (r *studentPostgresRepo) IsStudentOfAdvisor(studentID, lecturerUserID string) (bool, error) {
+	var count int
+	err := database.Pg.QueryRow(
+		context.Background(),
+		`
+        SELECT COUNT(*)
+        FROM students s
+        JOIN lecturers l ON s.advisor_id = l.id
+        WHERE s.id = $1 AND l.user_id = $2
+        `,
+		studentID,
+		lecturerUserID,
+	).Scan(&count)
+
+	return count > 0, err
+}
+
 

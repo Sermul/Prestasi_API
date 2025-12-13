@@ -21,90 +21,162 @@ func NewReportService(
 	}
 }
 
-// ===============================
+// ======================================================
 // FR-011 Achievement Statistics
-// ===============================
+// ======================================================
 func (s *ReportService) Statistics(c *fiber.Ctx) error {
 	role := c.Locals("role").(string)
 
 	// =====================
-	// ADMIN → SEMUA DATA
+	// ADMIN → SEMUA PRESTASI
 	// =====================
 	if role == "Admin" {
-		totalStudents, err := s.StudentRepo.CountAll()
+		refs, err := s.PostgresRepo.GetAllReferences()
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to count students"})
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 
-		totalAchievements, err := s.PostgresRepo.CountAll()
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to count achievements"})
+		stats := map[string]int{
+			"draft":     0,
+			"submitted": 0,
+			"verified":  0,
+			"rejected":  0,
+			"deleted":   0,
+		}
+
+		for _, r := range refs {
+			stats[r.Status]++
 		}
 
 		return c.JSON(fiber.Map{
-			"scope":              "all",
-			"total_students":     totalStudents,
-			"total_achievements": totalAchievements,
+			"scope":          "all",
+			"total_records": len(refs),
+			"by_status":     stats,
 		})
 	}
 
 	// =====================
-	// DOSEN WALI → BIMBINGAN
+	// DOSEN WALI → MAHASISWA BIMBINGAN
 	// =====================
 	if role == "Dosen Wali" {
 		lecturerID := c.Locals("lecturer_id").(string)
 
 		studentIDs, err := s.StudentRepo.GetStudentIDsByAdvisor(lecturerID)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to load advisees"})
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 
-		totalAchievements := 0
-		if len(studentIDs) > 0 {
-			totalAchievements, err = s.PostgresRepo.CountByStudentIDs(studentIDs)
-			if err != nil {
-				return c.Status(500).JSON(fiber.Map{"error": "failed to count achievements"})
-			}
+		refs, err := s.PostgresRepo.GetByStudentIDs(studentIDs)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		stats := map[string]int{
+			"draft":     0,
+			"submitted": 0,
+			"verified":  0,
+			"rejected":  0,
+			"deleted":   0,
+		}
+
+		for _, r := range refs {
+			stats[r.Status]++
 		}
 
 		return c.JSON(fiber.Map{
-			"scope":              "advisees",
-			"total_students":     len(studentIDs),
-			"total_achievements": totalAchievements,
+			"scope":          "advisees",
+			"total_records": len(refs),
+			"by_status":     stats,
 		})
 	}
 
 	// =====================
-	// MAHASISWA → DATA SENDIRI
+	// MAHASISWA → PRESTASI SENDIRI
 	// =====================
 	if role == "Mahasiswa" {
 		studentID := c.Locals("student_id").(string)
 
-		totalAchievements, err := s.PostgresRepo.CountByStudentID(studentID)
+		refs, err := s.PostgresRepo.GetByStudentID(studentID)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to count achievements"})
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		stats := map[string]int{
+			"draft":     0,
+			"submitted": 0,
+			"verified":  0,
+			"rejected":  0,
+			"deleted":   0,
+		}
+
+		for _, r := range refs {
+			stats[r.Status]++
 		}
 
 		return c.JSON(fiber.Map{
-			"scope":              "self",
-			"total_students":     1,
-			"total_achievements": totalAchievements,
+			"scope":          "self",
+			"total_records": len(refs),
+			"by_status":     stats,
 		})
 	}
 
 	return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
 }
 
-// ===============================
-// Report per Student (detail)
-// ===============================
+// ======================================================
+// Report Detail per Student
+// ======================================================
 func (s *ReportService) StudentReport(c *fiber.Ctx) error {
-	id := c.Params("id")
+	targetStudentID := c.Params("id")
+	role := c.Locals("role").(string)
 
-	refs, err := s.PostgresRepo.GetByStudentID(id)
+	// =====================
+	// RBAC
+	// =====================
+	if role == "Mahasiswa" {
+		if c.Locals("student_id") != targetStudentID {
+			return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
+		}
+	}
+
+	if role == "Dosen Wali" {
+		lecturerID := c.Locals("lecturer_id").(string)
+		studentIDs, _ := s.StudentRepo.GetStudentIDsByAdvisor(lecturerID)
+
+		allowed := false
+		for _, id := range studentIDs {
+			if id == targetStudentID {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
+		}
+	}
+
+	refs, err := s.PostgresRepo.GetByStudentID(targetStudentID)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(refs)
+	stats := map[string]int{
+		"draft":     0,
+		"submitted": 0,
+		"verified":  0,
+		"rejected":  0,
+		"deleted":   0,
+	}
+
+	for _, r := range refs {
+		stats[r.Status]++
+	}
+
+	return c.JSON(fiber.Map{
+		"student_id":        targetStudentID,
+		"total_achievements": len(refs),
+		"by_status":         stats,
+		"achievements":      refs,
+	})
 }
