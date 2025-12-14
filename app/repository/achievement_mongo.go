@@ -23,6 +23,8 @@ type AchievementMongoRepository interface {
 	GetAll() ([]model.AchievementMongo, error)
 	UpdateAchievementMongo(id primitive.ObjectID, a *model.AchievementMongo) error
     AddAttachmentMongo(id primitive.ObjectID, file *multipart.FileHeader) (string, error)
+    GetAllForReport() ([]model.AchievementMongo, error)
+
 }
 
 type achievementMongoRepo struct {
@@ -193,4 +195,22 @@ func (r *achievementMongoRepo) AddAttachmentMongo(id primitive.ObjectID, file *m
     return dstPath, nil
 }
 
+func (r *achievementMongoRepo) GetAllForReport() ([]model.AchievementMongo, error) {
+    ctx := context.TODO()
+
+    cursor, err := r.collection.Find(ctx, bson.M{
+        "deletedAt": bson.M{"$exists": false},
+    })
+    if err != nil {
+        return nil, err
+    }
+    defer cursor.Close(ctx)
+
+    var results []model.AchievementMongo
+    if err := cursor.All(ctx, &results); err != nil {
+        return nil, err
+    }
+
+    return results, nil
+}
 

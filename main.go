@@ -58,9 +58,8 @@ if err := database.ConnectMongo(); err != nil {
 userSvc := service.NewUserService(userRepo, roleRepo)
 lecturerSvc := service.NewLecturerService(studentRepo, lecturerRepo)
 
-reportSvc := service.NewReportService(achievementPostgresRepo, studentRepo)
-
-	// ===== ROUTES =====
+reportSvc := service.NewReportService(achievementMongoRepo, studentRepo) // nuat 5.8 yang pertama
+// 	// ===== ROUTES =====
 	route.AuthRouter(app, authSvc)
 route.AchievementRouter(app, achievementSvc)
 route.UserRouter(app, userSvc)
