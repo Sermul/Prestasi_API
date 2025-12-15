@@ -13,12 +13,21 @@ import (
 type UserService struct {
     UserRepo repository.UserPostgresRepository
     RoleRepo repository.RolePostgresRepository
+    StudentRepo  repository.StudentPostgresRepository
+    LecturerRepo repository.LecturerPostgresRepository
 }
 
-func NewUserService(userRepo repository.UserPostgresRepository, roleRepo repository.RolePostgresRepository) *UserService {
+func NewUserService(
+    userRepo repository.UserPostgresRepository,
+    roleRepo repository.RolePostgresRepository,
+    studentRepo repository.StudentPostgresRepository,
+    lecturerRepo repository.LecturerPostgresRepository,
+) *UserService {
     return &UserService{
-        UserRepo: userRepo,
-        RoleRepo: roleRepo,
+        UserRepo:     userRepo,
+        RoleRepo:     roleRepo,
+        StudentRepo:  studentRepo,
+        LecturerRepo: lecturerRepo,
     }
 }
 
@@ -152,16 +161,41 @@ func (s *UserService) ChangeRole(c *fiber.Ctx) error {
         return c.Status(400).JSON(fiber.Map{"error": "invalid body"})
     }
 
-    // VALIDASI role_id ada di tabel roles
+    // 1️⃣ ambil role
     role, err := s.RoleRepo.GetByID(body.RoleID)
     if err != nil {
         return c.Status(400).JSON(fiber.Map{"error": "invalid role_id"})
     }
 
-    // Update role user
+    // 2️⃣ update role user
     if err := s.UserRepo.UpdateRole(id, role.ID); err != nil {
         return c.Status(500).JSON(fiber.Map{"error": err.Error()})
     }
 
-    return c.JSON(fiber.Map{"message": "role updated"})
+    // 3️⃣ JIKA ROLE = DOSEN WALI → TAMBAH KE TABEL LECTURERS
+    if role.Name == "Dosen Wali" {
+
+        user, err := s.UserRepo.GetByID(id)
+        if err != nil {
+            return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+        }
+
+lecturer := model.Lecturer{
+    ID:         uuid.New().String(),
+    UserID:     user.ID,
+    LecturerID: user.Username,      // atau kode dosen jika ada
+    Department: "Teknik Informatika",
+    CreatedAt:  time.Now(),
 }
+
+
+        if err := s.LecturerRepo.Create(&lecturer); err != nil {
+            return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+        }
+    }
+
+    return c.JSON(fiber.Map{
+        "message": "role updated",
+    })
+}
+

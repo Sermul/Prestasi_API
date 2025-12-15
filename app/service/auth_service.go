@@ -37,7 +37,7 @@ func NewAuthService(
         UserRepo:           userRepo,
         RoleRepo:           roleRepo,
         StudentRepo:        studentRepo,
-        LecturerRepo:       lecturerRepo,  // <--- WAJIB
+        LecturerRepo:       lecturerRepo,  
     }
 }
 

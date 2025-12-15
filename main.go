@@ -55,7 +55,14 @@ if err := database.ConnectMongo(); err != nil {
 		
 	}
 // === Tambahkan service lainnya sesuai modul ===
-userSvc := service.NewUserService(userRepo, roleRepo)
+// userSvc := service.NewUserService(userRepo, roleRepo)
+userSvc := service.NewUserService(
+    userRepo,
+    roleRepo,
+    studentRepo,
+    lecturerRepo,
+)
+
 lecturerSvc := service.NewLecturerService(studentRepo, lecturerRepo)
 
 reportSvc := service.NewReportService(achievementMongoRepo, studentRepo) // nuat 5.8 yang pertama
