@@ -1,105 +1,138 @@
 package service
 
 import (
-	// "bytes"
-	// "encoding/json"
-	// "errors"
+	"bytes"
+	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
-	"strings"
+	"errors"
+
 	"prestasi_api/app/model"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 )
 
-//
-// ======================================================
-// MOCK STUDENT REPOSITORY
-// ======================================================
-//
-type MockStudentRepoStudent struct{}
 
 
-func (m *MockStudentRepoStudent) UpdateAdvisor(studentID, lecturerID string) error {
-	return nil
+// -------- Student Repo --------
+type MockStudentRepoSS struct{}
+
+func (m *MockStudentRepoSS) GetStudentIDsByAdvisor(advisorID string) ([]string, error) {
+	return []string{"student-1"}, nil
 }
 
-func (m *MockStudentRepoStudent) GetByID(id string) (*model.Student, error) {
+func (m *MockStudentRepoSS) GetByID(id string) (*model.Student, error) {
+	if id == "not-found" {
+		return nil, assert.AnError
+	}
 	return &model.Student{
 		ID:        id,
 		AdvisorID: "lect-1",
 	}, nil
 }
 
-func (m *MockStudentRepoStudent) GetAll() ([]*model.Student, error) {
+func (m *MockStudentRepoSS) GetByUserID(userID string) (*model.Student, error) {
+	return &model.Student{ID: "student-1", UserID: userID}, nil
+}
+
+func (m *MockStudentRepoSS) Create(*model.Student) error {
+	return nil
+}
+
+func (m *MockStudentRepoSS) UpdateAdvisor(studentID, lecturerID string) error {
+	return nil
+}
+
+func (m *MockStudentRepoSS) GetAll() ([]*model.Student, error) {
 	return []*model.Student{
-		{ID: "s1"},
-		{ID: "s2"},
+		{ID: "student-1", AdvisorID: "lect-1"},
 	}, nil
 }
 
-func (m *MockStudentRepoStudent) GetStudentIDsByAdvisor(advisorID string) ([]string, error) {
-	return []string{"s1"}, nil
-}
-
-func (m *MockStudentRepoStudent) GetStudentAchievements(studentID string) ([]*model.AchievementReference, error) {
+func (m *MockStudentRepoSS) GetStudentAchievements(studentID string) ([]*model.AchievementReference, error) {
 	return []*model.AchievementReference{}, nil
 }
 
-func (m *MockStudentRepoStudent) Create(*model.Student) error { return nil }
-func (m *MockStudentRepoStudent) CountAll() (int, error)      { return 0, nil }
-func (m *MockStudentRepoStudent) IsStudentOfAdvisor(string, string) (bool, error) {
+func (m *MockStudentRepoSS) CountAll() (int, error) {
+	return 1, nil
+}
+
+func (m *MockStudentRepoSS) IsStudentOfAdvisor(studentID, lecturerUserID string) (bool, error) {
 	return true, nil
 }
-func (m *MockStudentRepoStudent) GetByUserID(userID string) (*model.Student, error) {
-	return nil, nil
-}
-//
-// ======================================================
-// MOCK LECTURER REPOSITORY
-// ======================================================
-//
-type MockLecturerRepoStudent struct{}
 
-func (m *MockLecturerRepoStudent) GetByLecturerID(id string) (*model.Lecturer, error) {
+// -------- Lecturer Repo --------
+type MockLecturerRepoSS struct{}
+
+func (m *MockLecturerRepoSS) Create(*model.Lecturer) error {
+	return nil
+}
+
+func (m *MockLecturerRepoSS) Detail(id string) (*model.Lecturer, error) {
+	return &model.Lecturer{ID: "lect-1"}, nil
+}
+
+func (m *MockLecturerRepoSS) GetByLecturerID(id string) (*model.Lecturer, error) {
+	if id == "not-found" {
+		return nil, assert.AnError
+	}
+	return &model.Lecturer{ID: "lect-1"}, nil
+}
+
+func (m *MockLecturerRepoSS) GetAll() ([]*model.Lecturer, error) {
+	return []*model.Lecturer{}, nil
+}
+func (m *MockLecturerRepoSS) GetByUserID(userID string) (*model.Lecturer, error) {
+	if userID == "not-found" {
+		return nil, assert.AnError
+	}
 	return &model.Lecturer{
-		ID: id,
+		ID:     "lect-1",
+		UserID: userID,
 	}, nil
 }
-
-func (m *MockLecturerRepoStudent) Detail(id string) (*model.Lecturer, error) {
-	return &model.Lecturer{
-		ID: id,
-	}, nil
-}
-
-func (m *MockLecturerRepoStudent) Create(*model.Lecturer) error { return nil }
-func (m *MockLecturerRepoStudent) GetByUserID(string) (*model.Lecturer, error) {
-	return nil, nil
-}
-func (m *MockLecturerRepoStudent) List() ([]model.Lecturer, error) {
+func (m *MockLecturerRepoSS) List() ([]model.Lecturer, error) {
 	return []model.Lecturer{}, nil
 }
 
 
-//
-// ======================================================
-// TEST: AssignAdvisor
-// ======================================================
-//
-func TestStudent_AssignAdvisor_Success(t *testing.T) {
+
+// ======================= SETUP =======================
+
+func setupStudentService() (*StudentService, *fiber.App) {
 	app := fiber.New()
 
-	service := &StudentService{
-		StudentRepo:  &MockStudentRepoStudent{},
-		LecturerRepo: &MockLecturerRepoStudent{},
+	svc := &StudentService{
+		StudentRepo:  &MockStudentRepoSS{},
+		LecturerRepo: &MockLecturerRepoSS{},
 	}
 
-	app.Put("/students/:id/advisor", service.AssignAdvisor)
+	return svc, app
+}
 
-	body := `{"lecturer_id":"lect-1"}`
-	req := httptest.NewRequest("PUT", "/students/stu-1/advisor", strings.NewReader(body))
+
+
+// ======================= TESTS =======================
+
+// ---------- ASSIGN ADVISOR ----------
+func TestAssignAdvisor_Success(t *testing.T) {
+	svc, app := setupStudentService()
+
+	app.Post("/students/:id/advisor", func(c *fiber.Ctx) error {
+		return svc.AssignAdvisor(c)
+	})
+
+	body, _ := json.Marshal(map[string]string{
+		"lecturer_id": "lect-1",
+	})
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/students/student-1/advisor",
+		bytes.NewReader(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req)
@@ -107,83 +140,141 @@ func TestStudent_AssignAdvisor_Success(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 }
 
-//
-// ======================================================
-// TEST: List (ADMIN)
-// ======================================================
-//
-func TestStudent_List_Admin(t *testing.T) {
+func TestAssignAdvisor_LecturerNotFound(t *testing.T) {
 	app := fiber.New()
 
 	service := &StudentService{
-		StudentRepo:  &MockStudentRepo{},
-		LecturerRepo: &MockLecturerRepo{},
+		StudentRepo:  &MockStudentRepoSS{},
+		LecturerRepo: &MockLecturerRepoNotFound{},
 	}
 
-	app.Use(func(c *fiber.Ctx) error {
-		c.Locals("role", "Admin")
-		return c.Next()
+	app.Post("/students/:id/advisor", service.AssignAdvisor)
+
+	body, _ := json.Marshal(map[string]string{
+		"lecturer_id": "not-found",
 	})
 
-	app.Get("/students", service.List)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/students/student-1/advisor",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
 
-	req := httptest.NewRequest("GET", "/students", nil)
 	resp, err := app.Test(req)
 
 	assert.NoError(t, err)
-	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, 404, resp.StatusCode)
 }
 
-//
-// ======================================================
-// TEST: Detail (ADMIN)
-// ======================================================
-//
-func TestStudent_Detail_Admin(t *testing.T) {
-	app := fiber.New()
 
-	service := &StudentService{
-		StudentRepo:  &MockStudentRepo{},
-		LecturerRepo: &MockLecturerRepo{},
-	}
+// ---------- LIST ----------
+func TestStudentList_Admin(t *testing.T) {
+	svc, app := setupStudentService()
 
-	app.Use(func(c *fiber.Ctx) error {
+	app.Get("/students", func(c *fiber.Ctx) error {
 		c.Locals("role", "Admin")
-		return c.Next()
+		return svc.List(c)
 	})
 
-	app.Get("/students/:id", service.Detail)
+	req := httptest.NewRequest(http.MethodGet, "/students", nil)
+	resp, _ := app.Test(req)
 
-	req := httptest.NewRequest("GET", "/students/student-1", nil)
-	resp, err := app.Test(req)
-
-	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 }
 
-//
-// ======================================================
-// TEST: Achievements (ADMIN)
-// ======================================================
-//
-func TestStudent_Achievements_Admin(t *testing.T) {
-	app := fiber.New()
+func TestStudentList_DosenWali(t *testing.T) {
+	svc, app := setupStudentService()
 
-	service := &StudentService{
-		StudentRepo:  &MockStudentRepo{},
-		LecturerRepo: &MockLecturerRepo{},
-	}
-
-	app.Use(func(c *fiber.Ctx) error {
-		c.Locals("role", "Admin")
-		return c.Next()
+	app.Get("/students", func(c *fiber.Ctx) error {
+		c.Locals("role", "Dosen Wali")
+		c.Locals("lecturer_id", "lect-1")
+		return svc.List(c)
 	})
 
-	app.Get("/students/:id/achievements", service.Achievements)
+	req := httptest.NewRequest(http.MethodGet, "/students", nil)
+	resp, _ := app.Test(req)
 
-	req := httptest.NewRequest("GET", "/students/student-1/achievements", nil)
-	resp, err := app.Test(req)
-
-	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 }
+
+// ---------- DETAIL ----------
+func TestStudentDetail_Admin(t *testing.T) {
+	svc, app := setupStudentService()
+
+	app.Get("/students/:id", func(c *fiber.Ctx) error {
+		c.Locals("role", "Admin")
+		return svc.Detail(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/students/student-1", nil)
+	resp, _ := app.Test(req)
+
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestStudentDetail_DosenForbidden(t *testing.T) {
+	svc, app := setupStudentService()
+
+	app.Get("/students/:id", func(c *fiber.Ctx) error {
+		c.Locals("role", "Dosen Wali")
+		c.Locals("lecturer_id", "lect-x")
+		return svc.Detail(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/students/student-1", nil)
+	resp, _ := app.Test(req)
+
+	assert.Equal(t, 403, resp.StatusCode)
+}
+
+// ---------- ACHIEVEMENTS ----------
+func TestStudentAchievements_Admin(t *testing.T) {
+	svc, app := setupStudentService()
+
+	app.Get("/students/:id/achievements", func(c *fiber.Ctx) error {
+		c.Locals("role", "Admin")
+		return svc.Achievements(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/students/student-1/achievements", nil)
+	resp, _ := app.Test(req)
+
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestStudentAchievements_StudentNotFound(t *testing.T) {
+	svc, app := setupStudentService()
+
+	app.Get("/students/:id/achievements", func(c *fiber.Ctx) error {
+		c.Locals("role", "Admin")
+		return svc.Achievements(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/students/not-found/achievements", nil)
+	resp, _ := app.Test(req)
+
+	assert.Equal(t, 404, resp.StatusCode)
+}
+type MockLecturerRepoNotFound struct{}
+
+func (m *MockLecturerRepoNotFound) GetByLecturerID(string) (*model.Lecturer, error) {
+	return nil, errors.New("lecturer not found")
+}
+
+func (m *MockLecturerRepoNotFound) Detail(string) (*model.Lecturer, error) {
+	return nil, errors.New("lecturer not found")
+}
+
+func (m *MockLecturerRepoNotFound) GetByUserID(string) (*model.Lecturer, error) {
+	return nil, errors.New("lecturer not found")
+}
+
+func (m *MockLecturerRepoNotFound) Create(*model.Lecturer) error {
+	return nil
+}
+
+func (m *MockLecturerRepoNotFound) List() ([]model.Lecturer, error) {
+	return []model.Lecturer{}, nil
+}
+
