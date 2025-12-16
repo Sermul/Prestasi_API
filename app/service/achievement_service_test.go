@@ -345,3 +345,59 @@ func (m *MockAchievementPostgresRepoSubmitted) GetReferenceByID(id string) (*mod
 		Status:    "submitted", // ✅ UNTUK VERIFY / REJECT
 	}, nil
 }
+func TestDeleteAchievement_Draft_Success(t *testing.T) {
+	app := fiber.New()
+
+	service := &AchievementService{
+		PostgresRepo: &MockAchievementPostgresRepo{},
+		MongoRepo:    &MockAchievementMongoRepo{},
+	}
+
+	// middleware palsu → mahasiswa
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals("role", "Mahasiswa")
+		c.Locals("student_id", "student-1")
+		return c.Next()
+	})
+
+	app.Delete("/achievements/:id", service.Delete)
+
+	req := httptest.NewRequest(
+		http.MethodDelete,
+		"/achievements/achv-1",
+		nil,
+	)
+
+	resp, err := app.Test(req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode)
+
+}
+func TestAchievementList_Admin(t *testing.T) {
+	app := fiber.New()
+
+	service := &AchievementService{
+		PostgresRepo: &MockAchievementPostgresRepo{},
+		MongoRepo:    &MockAchievementMongoRepo{},
+	}
+
+	// middleware palsu → admin
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals("role", "Admin")
+		return c.Next()
+	})
+
+	app.Get("/achievements", service.List)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/achievements",
+		nil,
+	)
+
+	resp, err := app.Test(req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+}
